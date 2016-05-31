@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/preferences.js"></script>
+{% endblock %}
+{% block content %}
+	<h3>Account Preferences</h3>
+	<div>
+		<input type="checkbox" id="chk_is_subscribed" {% if user.subscribed_to_updates %} checked{% endif %}>Receive an email when wish list is updated.</input>
+	</div>
+	<input type="button" onclick="javascript:update_preferences()" value="Update" />
+	<div>
+		<i><span id="span_status_message"></span></i>
+	</div>
+{% endblock %}

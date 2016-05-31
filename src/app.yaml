@@ -1,0 +1,36 @@
+application: gift-exchange-central
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: yes
+
+handlers:
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
+- url: /media
+  static_dir: media 
+
+- url: /
+  login: optional
+  script: main.app
+ 
+- url: /login
+  login: optional
+  script: main.app
+  
+- url: /admin/.*
+  login: admin
+  script: admin.app
+
+- url: .*
+  login: required
+  script: main.app
+
+
+libraries:
+- name: webapp2
+  version: latest
+- name: jinja2
+  version: latest

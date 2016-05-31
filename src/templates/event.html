@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/event.js"></script>
+{% endblock %}
+{% block content %}
+	<h2>Gift Exchange Event</h2>
+	<input type="hidden" id="txt_event" value="{{ event_string }}" />
+	<table style="border='0px'">
+		<tr><td>Display Name:</td><td><input type="text" id="txt_display_name" value="{{ display_name }}" /></td></tr>
+		<tr><td>Money Limit:</td><td><input type="text" id="txt_money_limit" value="{{ money_limit }}" /></td></tr>
+	</table>
+	<div>
+		<input type="checkbox" id="chk_is_active"{% if is_active %} checked{% endif %}>Is the event still active?</input>
+	</div>
+	<hr />
+	<h3>Users</h3>
+	<div>
+		<input type="button" id="btn_add_participant" value="New Participant"/>
+		<table id="tbl_participants">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>User</th>
+					<th>Family</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for participant in participant_list %}
+				<tr>
+					<td>{{ participant.display_name }}</td>
+					<td>{{ participant.get_user().email }}</td>
+					<td>{{ participant.family }}</td>
+					<td><img src="/media/images/edit.png" class="btn_edit_row"/><img src="/media/images/delete.png" class="btn_delete_row"/></td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<hr />
+	<div>
+		<input type="button" onclick="javascript:save_to_database()" value="Save"/>
+		<input type="button" onclick="javascript:window.location.replace('/admin/')" value="Cancel" />
+	</div>
+	<div>
+		<i><span id="span_status_message"></span></i>
+	</div>
+	<span id="span_email_options" hidden="true">
+		<select class="user_select">
+		{% for user in user_list %}
+			<option value="{{ user.email }}">{{ user.email }}</option>	
+		{% endfor %}
+		</select>
+	</span>
+{% endblock %}

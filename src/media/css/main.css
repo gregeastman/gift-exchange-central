@@ -1,0 +1,50 @@
+body 
+{
+	background-color: #EEEEEE;
+	color: #000066;
+	font-family: "Gill Sans MT", "Gill Sans", GillSans, Arial, Helvetica, sans-serif;
+	line-height: 1.3;
+	padding-left: 2em;
+}
+
+a:link { color: #6633FF; }
+a:visited { color: #6633FF; }
+a:active { color: red; }
+a:hover { color: #6633FF; }
+
+a.anchor:hover { color: #66AAFF; }
+
+span.error 
+{
+	text-align: center;
+	color: #990000;	
+}
+
+div.toolbar 
+{
+	text-align: right; 
+	padding-bottom: 4px;
+}
+
+hr 
+{
+	color: #66AAFF;
+	background-color: #66AAFF;
+	height:3px;
+}
+
+/*---------------*/
+div.login 
+{
+	margin-left: auto;
+	margin-right: auto;
+	text-align: left;
+	width: 20em;
+}
+
+
+input[type=submit], input[type=button], .submit-row input { background:white url(../img/admin/nav-bg.gif) bottom repeat-x; padding:3px; color:black; border:1px solid #bbb; border-color:#ddd #aaa #aaa #ddd; }
+input[type=submit]:active, input[type=button]:active { background-image:url(../img/admin/nav-bg-reverse.gif); background-position:top; }
+input[type=submit].default, .submit-row input.default { border:2px solid #5b80b2; background:#7CA0C7 url(../img/admin/default-bg.gif) bottom repeat-x; font-weight:bold; color:white; }
+input[type=submit].default:active { background-image:url(../img/admin/default-bg-reverse.gif); background-position:top; }
+

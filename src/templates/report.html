@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>{{ event.display_name }}</h3>
+		<table id="tbl_events" border="1">
+			<thead>
+				<tr>
+					<th>Display Name</th>
+					<th>Family</th>
+					<th>Email</th>
+					<th>Who They're Giving To</th>
+					<th>Ideas</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for participant in participant_list %}
+				<tr>
+					<td>{{ participant.display_name }}</td>
+					<td>{{ participant.family }}</td>
+					<td>{{ participant.get_user().email }}</td>
+					<td>{{ participant.target }}</td>
+					<td>{{ participant.ideas }}</td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+
+{% endblock %}

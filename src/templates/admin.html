@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/admin.js"></script>
+{% endblock %}
+{% block content %}
+	<h2>Events</h2>
+	{% if event_list|length > 0 %}
+		<h3>Choose an event to edit:</h3>
+		<table id="tbl_events" style="border='0px'">
+			<tbody>
+			{% for event in event_list %}
+				<tr>
+					<td>{{ event.display_name }}</td>
+					<td><a href="/admin/event?event={{ event.key.urlsafe() }}">Edit</a></td>
+					<td><a href="/admin/report?event={{ event.key.urlsafe() }}">Report</a></td>
+					<td><a href="#" onclick="confirm_deletion('{{ event.key.urlsafe() }}');">Delete</a></td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	{% endif %}
+	<h3><a href="/admin/event">Create new event</a></h3>
+{% endblock %}
