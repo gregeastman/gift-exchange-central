@@ -83,6 +83,16 @@ function save_to_database()
 	{
 		is_active_string = "yes";
 	}
+	var participant_list = [];
+	$("#tbl_participants tbody tr").each(
+			function(index, value) {
+				var row_object = {};
+				row_object["display_name"] = $(this).find('td').eq(0).text();
+				row_object["email"] = $(this).find('td').eq(1).text();
+				row_object["family"] = $(this).find('td').eq(2).text();
+				participant_list.push(row_object); 
+			});
+	
 	$.ajax({
           type: "POST",
           url: "/admin/event",
@@ -92,15 +102,14 @@ function save_to_database()
         	  "is_active_string": is_active_string,
         	  "event": $("#txt_event").val(),
         	  "event_display_name": $("#txt_event_display_name").val(),
-        	  "money_limit": $("#txt_money_limit").val()
+        	  "money_limit": $("#txt_money_limit").val(),
+        	  "participant_list": participant_list
           })
         })
         .done(function( data ) {
             $("#txt_event").val(data["event_string"]);
             set_temporary_message("#span_status_message", data["message"])
         });
-	
-	
 }
 
 function save_all(tbody)

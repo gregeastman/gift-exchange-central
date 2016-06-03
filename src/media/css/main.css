@@ -42,6 +42,12 @@ div.login
 	width: 20em;
 }
 
+table.big_table
+{
+	font-size: 175%;
+	border-spacing: 10px;
+}
+
 
 input[type=submit], input[type=button], .submit-row input { background:white url(../img/admin/nav-bg.gif) bottom repeat-x; padding:3px; color:black; border:1px solid #bbb; border-color:#ddd #aaa #aaa #ddd; }
 input[type=submit]:active, input[type=button]:active { background-image:url(../img/admin/nav-bg-reverse.gif); background-position:top; }

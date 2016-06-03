@@ -3,10 +3,10 @@
 <script type="text/javascript" src="/media/js/admin.js"></script>
 {% endblock %}
 {% block content %}
-	<h2>Events</h2>
+	<h1>Events</h1>
 	{% if event_list|length > 0 %}
-		<h3>Choose an event to edit:</h3>
-		<table id="tbl_events" style="border='0px'">
+		<h2>Choose an event to edit:</h2>
+		<table class="big_table" id="tbl_events" style="border='0px'">
 			<tbody>
 			{% for event in event_list %}
 				<tr>
@@ -19,5 +19,5 @@
 			</tbody>
 		</table>
 	{% endif %}
-	<h3><a href="/admin/event">Create new event</a></h3>
+	<h2><a href="/admin/event">Create new event</a></h2>
 {% endblock %}

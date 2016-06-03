@@ -35,7 +35,9 @@ _DEFAULT_DISPLAY_NAME = '<ENTER A NAME>'
 
 class HomeHandler(webapp2.RequestHandler):
     def get(self):
+        google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
         query = datamodel.GiftExchangeEvent.query(ancestor=gift_exchange_key)
         event_list = query.fetch(20)
         template_values = {
@@ -52,25 +54,25 @@ class EventHandler(webapp2.RequestHandler):
         event = None
         event_string = self.request.get('event')
         if event_string:
-            #TODO: trap error
+            #TODO: trap error - also consider other places doing ndb.Key
             event_key = ndb.Key(urlsafe=event_string)
             event = event_key.get()
-        display_name = _DEFAULT_DISPLAY_NAME
+        event_display_name = _DEFAULT_DISPLAY_NAME
         money_limit = ''
         is_active = True
         participant_list = []
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         query = datamodel.GiftExchangeUser.query(ancestor=gift_exchange_key)
-        user_list = query.fetch(200) #TODO: handle more than 200
+        user_list = query.fetch(200)
         if event is not None:
-            display_name = event.display_name
+            event_display_name = event.display_name
             money_limit = event.money_limit
             is_active = event.is_active
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100) #TODO: handle more than 100 users
+            participant_list = query.fetch(100)
         template_values = {
                 'event_string': event_string,
-                'display_name': display_name,
+                'event_display_name': event_display_name,
                 'money_limit': money_limit,
                 'is_active': is_active,
                 'participant_list': participant_list,
@@ -89,13 +91,13 @@ class EventHandler(webapp2.RequestHandler):
         event = None
         needs_saving = False
         event_string = data['event']
-        display_name = data['event_display_name']
+        event_display_name = data['event_display_name']
         money_limit = data['money_limit']
         is_active_string = data['is_active_string']
         is_active = True
         if is_active_string == 'no':
             is_active = False
-        if ((display_name is None) or (display_name == '') or (display_name == _DEFAULT_DISPLAY_NAME)):
+        if ((event_display_name is None) or (event_display_name == '') or (event_display_name == _DEFAULT_DISPLAY_NAME)):
             message = 'You must select a valid display name'
         else:
             if event_string:
@@ -104,8 +106,8 @@ class EventHandler(webapp2.RequestHandler):
             if event is None:
                 event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
                 needs_saving = True
-            if event.display_name != display_name:
-                event.display_name = display_name
+            if event.display_name != event_display_name:
+                event.display_name = event_display_name
                 needs_saving = True
             if money_limit:
                 if event.money_limit != money_limit:
@@ -117,17 +119,45 @@ class EventHandler(webapp2.RequestHandler):
         if needs_saving:
             event.put()
             event_string = event.key.urlsafe()
-        #TODO: gather user information and save that
+            event_key = event.key
+        EventHandler._save_participants(gift_exchange_key, event_key, data['participant_list'])
         self.response.out.write(json.dumps(({'message': message, 'event_string': event_string})))
+    
+    @staticmethod
+    def _save_participants(gift_exchange_key, event_key, participant_list):
+        for participant_object in participant_list:
+            needs_saving = False
+            display_name = participant_object['display_name']
+            participant = datamodel.GiftExchangeParticipant.get_participant_by_name(gift_exchange_key, display_name, event_key)
+            if participant is None:
+                participant = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, display_name, event_key)
+                needs_saving = True
+            user = datamodel.GiftExchangeUser.get_user_by_email(gift_exchange_key, participant_object['email'])
+            if participant.user_key != user.key:
+                participant.user_key = user.key
+                needs_saving = True
+            family = participant_object['family']
+            if participant.family != family:
+                participant.family = family
+                needs_saving = True
+            if needs_saving:
+                participant.put()
+        return
+
 
 class DeleteHandler(webapp2.RequestHandler):
     def post(self):
+        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         data = json.loads(self.request.body)
         event_string = data['event']
         if event_string:
             event_key = ndb.Key(urlsafe=event_string)
             event = event_key.get()
         if event is not None:
+            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
+            participant_list = query.fetch(100)
+            for participant in participant_list:
+                participant.key.delete()
             event.key.delete()
         self.response.out.write(json.dumps(({'message': 'Successfully deleted.'})))
     
@@ -145,7 +175,7 @@ class ReportHandler(webapp2.RequestHandler):
         else:
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100) #TODO: handle more than 100 users
+            participant_list = query.fetch(100)
             template_values = {
                 'event': event,
                 'participant_list': participant_list,
@@ -156,7 +186,7 @@ class ReportHandler(webapp2.RequestHandler):
             template = _JINJA_ENVIRONMENT.get_template('report.html')
             self.response.write(template.render(template_values))
         return
-
+        
 app = webapp2.WSGIApplication([
     ('/admin/', HomeHandler),
     ('/admin/event', EventHandler),

@@ -30,7 +30,7 @@ class GiftExchangeEvent(ndb.Model):
 
 class GiftExchangeUser(ndb.Model):
     google_user_id = ndb.StringProperty(indexed=True)
-    email = ndb.StringProperty(indexed=False)
+    email = ndb.StringProperty(indexed=True)
     subscribed_to_updates = ndb.BooleanProperty(indexed=False, default=True)
 
     @staticmethod
@@ -49,6 +49,11 @@ class GiftExchangeUser(ndb.Model):
                 user.email = google_user.email()
                 user.put()
         return user
+    
+    @staticmethod
+    def get_user_by_email(gift_exchange_key, email):
+        query = GiftExchangeUser.query(GiftExchangeUser.email==email, ancestor=gift_exchange_key)
+        return query.get()
 
 class GiftExchangeParticipant(ndb.Model):
     user_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeUser)
@@ -80,7 +85,6 @@ class GiftExchangeParticipant(ndb.Model):
     @staticmethod
     def create_participant_by_name(gift_exchange_key, display_name, event_key):
         user = GiftExchangeParticipant.get_participant_by_name(gift_exchange_key, display_name, event_key)
-        #TODO: consider raising error if user already exists
         if user is None:
             user = GiftExchangeParticipant(parent=gift_exchange_key, display_name=display_name, event_key=event_key)
             user.put()

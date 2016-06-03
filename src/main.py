@@ -33,6 +33,18 @@ _JINJA_ENVIRONMENT = jinja2.Environment(
 
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 
+
+def is_key_valid_for_user(participant_string):
+    participant_key = ndb.Key(urlsafe=participant_string)
+    gift_exchange_participant = participant_key.get()
+    if gift_exchange_participant is None:
+        return (False, None)
+    elif gift_exchange_participant.is_valid_for_google_id(users.get_current_user().user_id()) == False:
+        return (False, None)
+    else:
+        return (True, gift_exchange_participant)
+    return (False, None)
+
 class LoginHandler(webapp2.RequestHandler):
     def get(self):
         user = users.get_current_user()
@@ -50,12 +62,16 @@ class HomeHandler(webapp2.RequestHandler):
     def get(self):
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        #TODO: need to handle more than 20 users
         user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
-        participant_list = []
+        all_participants = []
         if user is not None:
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.user_key==user.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(20)
+            all_participants = query.fetch(100)
+        participant_list = []
+        for participant in all_participants:
+            event = participant.get_event()
+            if event.is_active:
+                participant_list.append(participant)
         if len(participant_list)==1:
             participant = participant_list[0]
             self.redirect('/main?gift_exchange_participant=' + participant.key.urlsafe())
@@ -72,13 +88,9 @@ class HomeHandler(webapp2.RequestHandler):
 
 class MainHandler(webapp2.RequestHandler):
     def get(self):
-        participant_key = ndb.Key(urlsafe=self.request.get('gift_exchange_participant'))
-        gift_exchange_participant = participant_key.get()
-        if gift_exchange_participant is None:
-            self.redirect('/home')
-        elif gift_exchange_participant.is_valid_for_google_id(users.get_current_user().user_id()) == False:
-            self.redirect('/home')
-        else:
+        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        if ret[0]:
+            gift_exchange_participant = ret[1]
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
             target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
                                                                                 gift_exchange_key, 
@@ -94,32 +106,40 @@ class MainHandler(webapp2.RequestHandler):
                 }
             template = _JINJA_ENVIRONMENT.get_template('main.html')
             self.response.write(template.render(template_values))
-        return
+            return
+        self.redirect('/home')
 
 class UpdateHandler(webapp2.RequestHandler):
     def post(self):
-        participant_key = ndb.Key(urlsafe=self.request.get('gift_exchange_participant'))
-        gift_exchange_participant = participant_key.get()
-        url_params = ''
-        if gift_exchange_participant is not None:
-            ideas = self.request.get('ideas')
-            #emailSubject = self.request.get('emailSubject')
-            gift_exchange_participant.ideas = ideas
-            gift_exchange_participant.put()
-            url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
-            #TODO: send update email
-        self.redirect('/main' + url_params)
+        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        if ret[0]:
+            gift_exchange_participant = ret[1]
+            url_params = ''
+            if gift_exchange_participant is not None:
+                ideas = self.request.get('ideas')
+                #emailSubject = self.request.get('emailSubject')
+                gift_exchange_participant.ideas = ideas
+                gift_exchange_participant.put()
+                url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
+                #TODO: send update email
+            self.redirect('/main' + url_params)
+            return
+        self.redirect('/home')
+        
 
 class AssignmentHandler(webapp2.RequestHandler):
     def post(self):
-        participant_key = ndb.Key(urlsafe=self.request.get('gift_exchange_participant'))
-        gift_exchange_participant = participant_key.get()
-        url_params = ''
-        if gift_exchange_participant is not None:
-            gift_exchange_participant.is_target_known = True
-            gift_exchange_participant.put()
-            url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
-        self.redirect('/main' + url_params)
+        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        if ret[0]:
+            gift_exchange_participant = ret[1]
+            url_params = ''
+            if gift_exchange_participant is not None:
+                gift_exchange_participant.is_target_known = True
+                gift_exchange_participant.put()
+                url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
+            self.redirect('/main' + url_params)
+            return
+        self.redirect('/home')
 
 class PreferencesHandler(webapp2.RequestHandler):
     def get(self):
@@ -153,52 +173,34 @@ class PreferencesHandler(webapp2.RequestHandler):
 
 class MessageHandler(webapp2.RequestHandler):
     def get(self):
+        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        if ret[0]:
+            gift_exchange_participant = ret[1]
+            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
+                                                                                gift_exchange_key, 
+                                                                                gift_exchange_participant.target,
+                                                                                gift_exchange_participant.event_key)
+            target_has_email = False
+            if target_participant.email:
+                target_has_email = True
+            template_values = {
+                               'target_participant': target_participant,
+                               'target_has_email': target_has_email,
+                               'page_title': 'Send A Message',
+                               'is_admin_user': users.is_current_user_admin(),
+                               'logout_url': users.create_logout_url(self.request.uri)
+                            }
+            template = _JINJA_ENVIRONMENT.get_template('message.html')
+            self.response.write(template.render(template_values))
+            return
+        self.redirect('/home')
+    
+    def post(self):
         #TODO: implement
         self.redirect('/home')
- 
-class TestHandler(webapp2.RequestHandler):
-    def get(self):
-        template_values = {
-                        }
-        template = _JINJA_ENVIRONMENT.get_template('test.html')
-        self.response.write(template.render(template_values))
-        
-        
-#         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-#         query = datamodel.GiftExchangeEvent.query(ancestor=gift_exchange_key)
-#         event = query.get()
-#         if event is None:
-#             event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
-#             event.display_name = 'Test Gift Exchange'
-#         event.put()
-#         event_key = event.key
-#         google_user = users.get_current_user()
-#         user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
-#         if user.email == 'kate@example.com':
-#             mikey = datamodel.GiftExchangeParticipant.get_participant_by_name(gift_exchange_key, 'Mikey', event_key)
-#             if mikey is None:
-#                 mikey = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, 'Mikey', event_key)
-#             if user.key != mikey.user_key:
-#                 mikey.user_key = user.key
-#                 mikey.put()
-#             grady = datamodel.GiftExchangeParticipant.get_participant_by_name(gift_exchange_key, 'Grady', event_key)
-#             if grady is None:
-#                 grady = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, 'Grady', event_key)
-#             if user.key != grady.user_key:
-#                 grady.user_key = user.key
-#                 grady.put()
-#         if user.email == 'test@example.com':
-#             natalie = datamodel.GiftExchangeParticipant.get_participant_by_name(gift_exchange_key, 'Natalie', event_key)
-#             if natalie is None:
-#                 natalie = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, 'Natalie', event_key)
-#             if user.key != natalie.user_key:
-#                 natalie.user_key = user.key
-#                 natalie.put()
-#         self.response.write('<html><body><p>Successfully updated</p><p><a href="/home">Home</a></p></body></html>')
-        
 
 app = webapp2.WSGIApplication([
-    ('/test', TestHandler), #TODO: REMOVE
     ('/', LoginHandler),
     ('/login', LoginHandler),
     ('/main', MainHandler),
