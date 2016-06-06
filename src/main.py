@@ -18,7 +18,7 @@ import os
 
 from google.appengine.api import users
 from google.appengine.ext import ndb
-#from google.appengine.api import mail
+from google.appengine.api import mail
 
 import datamodel
 
@@ -35,6 +35,14 @@ _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 
 
 def is_key_valid_for_user(participant_string):
+    """Determines if a parameter is valid for the user who is currently logged in
+    
+        participant_string: the url encoded ndb key string
+        
+        Returns a tuple
+            The first piece being a boolean for whether the user is valid
+            The second piece is the GiftExchangeParticipant object
+    """
     participant_key = ndb.Key(urlsafe=participant_string)
     gift_exchange_participant = participant_key.get()
     if gift_exchange_participant is None:
@@ -46,7 +54,9 @@ def is_key_valid_for_user(participant_string):
     return (False, None)
 
 class LoginHandler(webapp2.RequestHandler):
+    """The class that handles requests for logins"""
     def get(self):
+        """Method that handles get requests for the login page"""
         user = users.get_current_user()
         if user:
             self.redirect('/home')
@@ -59,7 +69,9 @@ class LoginHandler(webapp2.RequestHandler):
             self.response.write(template.render(template_values))
 
 class HomeHandler(webapp2.RequestHandler):
+    """The home page of the gift exchange app. This finds any events that a user is in"""
     def get(self):
+        """The handler for get requests to the home page"""
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
@@ -70,7 +82,7 @@ class HomeHandler(webapp2.RequestHandler):
         participant_list = []
         for participant in all_participants:
             event = participant.get_event()
-            if event.is_active:
+            if event.is_active():
                 participant_list.append(participant)
         if len(participant_list)==1:
             participant = participant_list[0]
@@ -87,7 +99,9 @@ class HomeHandler(webapp2.RequestHandler):
         return
 
 class MainHandler(webapp2.RequestHandler):
+    """The main page for a given event. Requires a specific participant"""
     def get(self):
+        """Handles get requests for the main page of a given event."""
         ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
         if ret[0]:
             gift_exchange_participant = ret[1]
@@ -99,7 +113,7 @@ class MainHandler(webapp2.RequestHandler):
             template_values = {
                     'page_title': gift_exchange_participant.get_event().display_name + ' Homepage',
                     'gift_exchange_participant': gift_exchange_participant,
-                    'targe_participant': target_participant,
+                    'target_participant': target_participant,
                     'money_limit': gift_exchange_participant.get_event().money_limit,
                     'is_admin_user': users.is_current_user_admin(),
                     'logout_url': users.create_logout_url(self.request.uri)
@@ -110,14 +124,16 @@ class MainHandler(webapp2.RequestHandler):
         self.redirect('/home')
 
 class UpdateHandler(webapp2.RequestHandler):
+    """Class that handles updates to the participant page"""
     def post(self):
+        """This handles post requests. This currently handles posts from forms"""
         ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
         if ret[0]:
             gift_exchange_participant = ret[1]
             url_params = ''
             if gift_exchange_participant is not None:
                 ideas = self.request.get('ideas')
-                #emailSubject = self.request.get('emailSubject')
+                #email_subject = self.request.get('emailSubject')
                 gift_exchange_participant.ideas = ideas
                 gift_exchange_participant.put()
                 url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
@@ -128,7 +144,9 @@ class UpdateHandler(webapp2.RequestHandler):
         
 
 class AssignmentHandler(webapp2.RequestHandler):
+    """The handler for assigning requests."""
     def post(self):
+        """This handles the post request for assigning users. Uses forms"""
         ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
         if ret[0]:
             gift_exchange_participant = ret[1]
@@ -142,7 +160,9 @@ class AssignmentHandler(webapp2.RequestHandler):
         self.redirect('/home')
 
 class PreferencesHandler(webapp2.RequestHandler):
+    """The handler for updating preferences."""
     def get(self):
+        """Handles get requests and serves up the preference page."""
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         user = datamodel.GiftExchangeUser.get_user_by_google_id(gift_exchange_key, google_user.user_id())
@@ -156,6 +176,7 @@ class PreferencesHandler(webapp2.RequestHandler):
         self.response.write(template.render(template_values))
     
     def post(self):
+        """Handles posts requests for updating preferences. Requires a JSON object."""
         data = json.loads(self.request.body)
         subscribed_string = data['subscribed_string']
         subscribed_to_updates = True
@@ -172,7 +193,9 @@ class PreferencesHandler(webapp2.RequestHandler):
         self.response.out.write(json.dumps(({'message': 'Preferences Updated Successfully'})))
 
 class MessageHandler(webapp2.RequestHandler):
+    """Handler for page to send anonymous messages to your target"""
     def get(self):
+        """Handles get requests for the message"""
         ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
         if ret[0]:
             gift_exchange_participant = ret[1]
@@ -185,6 +208,7 @@ class MessageHandler(webapp2.RequestHandler):
             if target_participant.email:
                 target_has_email = True
             template_values = {
+                               'gift_exchange_participant': gift_exchange_participant,
                                'target_participant': target_participant,
                                'target_has_email': target_has_email,
                                'page_title': 'Send A Message',
@@ -197,7 +221,26 @@ class MessageHandler(webapp2.RequestHandler):
         self.redirect('/home')
     
     def post(self):
-        #TODO: implement
+        """Handles posts requests for the message class. Will send an email to the target"""
+        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        if ret[0]:
+            gift_exchange_participant = ret[1]
+            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
+                                                                                gift_exchange_key, 
+                                                                                gift_exchange_participant.target,
+                                                                                gift_exchange_participant.event_key)
+            if target_participant.email:
+                body = self.request.get('email_body')
+                subject = self.request.get('email_subject')
+                message = mail.EmailMessage(
+                                sender='anonymous@gift-exchange-central.appspotmail.com',
+                                subject=subject)
+                message.to = target_participant.email
+                message.body = body
+                message.send()
+            self.redirect('/main?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe())
+            return
         self.redirect('/home')
 
 app = webapp2.WSGIApplication([

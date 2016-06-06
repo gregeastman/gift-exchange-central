@@ -5,24 +5,39 @@
 {% block content %}
 	<h2>Gift Exchange Event</h2>
 	<input type="hidden" id="txt_event" value="{{ event_string }}" />
+	<div>
+		<h3 id="event_status">
+			{% if not event_string %}
+			The event has not yet been created.
+			{% elif not has_started %}
+			The event has not yet started.
+			{% elif not has_ended %}
+			The event is in progress.
+			{% else %}
+			The event has ended.
+			{% endif %}
+		</h3>
+		<input type="button" onclick="javascript:start_event()" {% if not event_string or has_started or has_ended %}style="display:none;" {% endif %}value="Start Event" />
+		<input type="button" onclick="javascript:end_event()" {% if not event_string or not has_started or has_ended %}style="display:none;" {% endif %}value="End Event" />
+	</div>
+	<hr />
 	<table style="border='0px'">
 		<tr><td>Display Name:</td><td><input type="text" id="txt_event_display_name" value="{{ event_display_name }}" /></td></tr>
 		<tr><td>Money Limit:</td><td><input type="text" id="txt_money_limit" value="{{ money_limit }}" /></td></tr>
 	</table>
-	<div>
-		<input type="checkbox" id="chk_is_active"{% if is_active %} checked{% endif %}>Is the event still active?</input>
-	</div>
 	<hr />
 	<h3>Users</h3>
 	<div>
+		{% if has_started == False %}
 		<input type="button" id="btn_add_participant" value="New Participant"/>
+		{% endif %}
 		<table id="tbl_participants">
 			<thead>
 				<tr>
 					<th>Name</th>
 					<th>User</th>
 					<th>Family</th>
-					<th></th>
+					{% if has_started == False %}<th></th>{% endif %}
 				</tr>
 			</thead>
 			<tbody>
@@ -31,7 +46,7 @@
 					<td>{{ participant.display_name }}</td>
 					<td>{{ participant.get_user().email }}</td>
 					<td>{{ participant.family }}</td>
-					<td><img src="/media/images/edit.png" class="btn_edit_row"/><img src="/media/images/delete.png" class="btn_delete_row"/></td>
+					{% if has_started == False %}<td><img src="/media/images/edit.png" class="btn_edit_row"/><img src="/media/images/delete.png" class="btn_delete_row"/></td>{% endif %}
 				</tr>
 			{% endfor %}
 			</tbody>
@@ -39,13 +54,13 @@
 	</div>
 	<hr />
 	<div>
-		<input type="button" onclick="javascript:save_to_database()" value="Save"/>
+		<input type="button" onclick="javascript:save_to_database()" value="Save" />
 		<input type="button" onclick="javascript:window.location.replace('/admin/')" value="Cancel" />
 	</div>
 	<div>
 		<i><span id="span_status_message"></span></i>
-	</div>
-	<span id="span_email_options" hidden="true">
+	</div>	
+	<span id="span_email_options" style="display:none;">
 		<select class="user_select">
 		{% for user in user_list %}
 			<option value="{{ user.email }}">{{ user.email }}</option>	

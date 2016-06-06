@@ -60,6 +60,7 @@ function save_row_helper(par)
 	{
 		return;	
 	}
+	//TODO: check for duplicates
 	var td_email = par.children("td:nth-child(2)");
 	var td_family = par.children("td:nth-child(3)");
 	var td_buttons = par.children("td:nth-child(4)");
@@ -74,15 +75,21 @@ function save_row_helper(par)
 	$(".btn_delete_row").bind("click", delete_row);
 }
 
+function save_all(tbody)
+{
+	var array_length = tbody.children().length;
+	for (var i = 0; i < array_length; i++) 
+	{
+		var query = "tr:nth-child(" + (i+1).toString() + ")";
+		var row = tbody.children(query);
+		save_row_helper(row);
+	}	
+}
+
 function save_to_database()
 {
 	save_all($("#tbl_participants tbody"));
 	
-	var is_active_string = "no";
-	if (chk_is_active.checked == 1)
-	{
-		is_active_string = "yes";
-	}
 	var participant_list = [];
 	$("#tbl_participants tbody tr").each(
 			function(index, value) {
@@ -99,7 +106,6 @@ function save_to_database()
           dataType: "json",
           data: JSON.stringify(
         	{ 
-        	  "is_active_string": is_active_string,
         	  "event": $("#txt_event").val(),
         	  "event_display_name": $("#txt_event_display_name").val(),
         	  "money_limit": $("#txt_money_limit").val(),
@@ -107,21 +113,66 @@ function save_to_database()
           })
         })
         .done(function( data ) {
-            $("#txt_event").val(data["event_string"]);
-            set_temporary_message("#span_status_message", data["message"])
+        	if ($("#txt_event").val() != data["event_string"])
+        	{
+        		window.location.replace("/admin/event?event=" + data["event_string"]);
+        		/* 
+        		 * TODO: Update this to manipulate the DOM.
+        		 * 			Set the event key in txt_event
+        		 * 			Set the money limit if it used the default
+        		 * 			Enable the button to start the event
+        		 */
+        		//$("#txt_event").val(data["event_string"]);
+        	} else 
+        	{
+        		set_temporary_message("#span_status_message", data["message"])
+        	}	   
         });
 }
 
-function save_all(tbody)
+function start_event()
 {
-	var array_length = tbody.children().length;
-	for (var i = 0; i < array_length; i++) 
-	{
-		var query = "tr:nth-child(" + (i+1).toString() + ")";
-		var row = tbody.children(query);
-		save_row_helper(row);
-	}	
+	$.ajax({
+        type: "POST",
+        url: "/admin/statuschange",
+        dataType: "json",
+        data: JSON.stringify(
+      	{ 
+      	  "event": $("#txt_event").val(),
+      	  "status_change_type": "start"
+        })
+      })
+      .done(function( data ) {
+  		window.location.replace("/admin/event?event=" + data["event_string"]);
+  		/* 
+  		 * TODO: Update this to manipulate the DOM.
+  		 * 			Disable the button to start the event
+  		 * 			Enabled the button to stop the event
+  		 */
+      });
 }
+
+function end_event()
+{
+	$.ajax({
+        type: "POST",
+        url: "/admin/statuschange",
+        dataType: "json",
+        data: JSON.stringify(
+      	{ 
+      	  "event": $("#txt_event").val(),
+      	  "status_change_type": "stop"
+        })
+      })
+      .done(function( data ) {
+  		window.location.replace("/admin/event?event=" + data["event_string"]);
+  		/* 
+  		 * TODO: Update this to manipulate the DOM.	
+  		 * 			Disable the button to stop the event
+  		 */
+      });
+}
+
 
 $(function()
 {

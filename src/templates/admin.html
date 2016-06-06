@@ -13,7 +13,7 @@
 					<td>{{ event.display_name }}</td>
 					<td><a href="/admin/event?event={{ event.key.urlsafe() }}">Edit</a></td>
 					<td><a href="/admin/report?event={{ event.key.urlsafe() }}">Report</a></td>
-					<td><a href="#" onclick="confirm_deletion('{{ event.key.urlsafe() }}');">Delete</a></td>
+					<td><a href="#" onclick="javascript:confirm_deletion('{{ event.key.urlsafe() }}');">Delete</a></td>
 				</tr>
 			{% endfor %}
 			</tbody>

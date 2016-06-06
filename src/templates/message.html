@@ -4,6 +4,7 @@
 	<h2>Send an anonymous email to {{ target_participant }}</h2>
 	<form action="/message" method="post">
 		<textarea name="email_body" cols="60" rows="10"></textarea><br />
+		<input type="hidden" name="gift_exchange_participant" value="{{ gift_exchange_participant.key.urlsafe() }}" />
 		<input type="hidden" name="email_subject" value="Your Secret Santa Has Sent You An Email" />
 		<input type="submit" value="Send" /> 
 	</form>
