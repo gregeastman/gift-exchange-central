@@ -95,6 +95,14 @@ class GiftExchangeParticipant(ndb.Model):
             return False
         return (user.google_user_id == google_user_id)
     
+    def get_giver(self):
+        """Gets the user who is giving to this participant, if that person knows"""
+        query = GiftExchangeParticipant.query(GiftExchangeParticipant.target==self.display_name, GiftExchangeParticipant.event_key==self.event_key)
+        giver = query.get()
+        if giver.is_target_known:
+            return giver
+        return None
+    
     @staticmethod
     def get_participant_by_name(gift_exchange_key, display_name, event_key):
         """Gets a participant in a gift exchange by their display name"""
