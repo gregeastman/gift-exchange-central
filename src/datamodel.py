@@ -78,7 +78,7 @@ class GiftExchangeParticipant(ndb.Model):
     event_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeEvent)
     target = ndb.StringProperty(indexed=True) #represents display_name of user in same event
     is_target_known = ndb.BooleanProperty(indexed=False)
-    #previous_target = ndb.StringProperty(indexed=False) #represents the display name of the user from last year's event
+    previous_target = ndb.StringProperty(indexed=False) #represents the display name of the user from last year's event
     
     def get_event(self):
         """Returns the event object that a user is in"""

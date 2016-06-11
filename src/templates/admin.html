@@ -4,11 +4,41 @@
 {% endblock %}
 {% block content %}
 	<h1>Events</h1>
-	{% if event_list|length > 0 %}
-		<h2>Choose an event to edit:</h2>
-		<table class="big_table" id="tbl_events" style="border='0px'">
+	{% if not_started_events|length > 0 %}
+		<h2>New Events:</h2>
+		<table class="big_table" id="tbl_not_started_events" style="border='0px'">
 			<tbody>
-			{% for event in event_list %}
+			{% for event in not_started_events %}
+				<tr>
+					<td>{{ event.display_name }}</td>
+					<td><a href="/admin/event?event={{ event.key.urlsafe() }}">Edit</a></td>
+					<td><a href="/admin/report?event={{ event.key.urlsafe() }}">Report</a></td>
+					<td><a href="#" onclick="javascript:confirm_deletion('{{ event.key.urlsafe() }}');">Delete</a></td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	{% endif %}
+	{% if in_progress_events|length > 0 %}
+		<h2>In Progress Events:</h2>
+		<table class="big_table" id="tbl_in_progress_events" style="border='0px'">
+			<tbody>
+			{% for event in in_progress_events %}
+				<tr>
+					<td>{{ event.display_name }}</td>
+					<td><a href="/admin/event?event={{ event.key.urlsafe() }}">Edit</a></td>
+					<td><a href="/admin/report?event={{ event.key.urlsafe() }}">Report</a></td>
+					<td><a href="#" onclick="javascript:confirm_deletion('{{ event.key.urlsafe() }}');">Delete</a></td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+	{% endif %}
+	{% if ended_events|length > 0 %}
+		<h2>Ended Events:</h2>
+		<table class="big_table" id="tbl_ended_events" style="border='0px'">
+			<tbody>
+			{% for event in ended_events %}
 				<tr>
 					<td>{{ event.display_name }}</td>
 					<td><a href="/admin/event?event={{ event.key.urlsafe() }}">Edit</a></td>

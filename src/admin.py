@@ -24,7 +24,7 @@ import datamodel
 import jinja2
 import webapp2
 import json
-from datamodel import get_gift_exchange_key
+import random
 
 _JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__),'templates')),
@@ -42,9 +42,21 @@ class HomeHandler(webapp2.RequestHandler):
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
         query = datamodel.GiftExchangeEvent.query(ancestor=gift_exchange_key)
-        event_list = query.fetch(100) #maybe filter out the  events that have ended
+        event_list = query.fetch(200) #maybe filter out the  events that have ended
+        not_started_events = []
+        in_progress_events = []
+        ended_events = []
+        for event in event_list:
+            if event.has_ended:
+                ended_events.append(event)
+            elif event.has_started:
+                in_progress_events.append(event)
+            else:
+                not_started_events.append(event)  
         template_values = {
-                'event_list': event_list,
+                'not_started_events': not_started_events,
+                'in_progress_events': in_progress_events,
+                'ended_events': ended_events,
                 'page_title': 'Administrative Dashboard',
                 'is_admin_user': users.is_current_user_admin(),
                 'logout_url': users.create_logout_url(self.request.uri)
@@ -219,6 +231,35 @@ class ReportHandler(webapp2.RequestHandler):
             self.response.write(template.render(template_values))
         return
 
+class InheritHandler(webapp2.RequestHandler):
+    """Handler for a particular event spawning a child event with the same defaults and previous targets filled in"""
+    def get(self):
+        """Handles the get requests for inheriting an event"""
+        parent_event = None
+        parent_event_string = self.request.get('parent_event')
+        if parent_event_string:
+            parent_event_key = ndb.Key(urlsafe=parent_event_string)
+            parent_event = parent_event_key.get()
+        if parent_event is None:
+            self.redirect('/admin/')
+        else:
+            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
+            event.display_name = 'Sequel to ' + parent_event.display_name
+            event.money_limit = parent_event.money_limit
+            event.put()
+            event_key = event.key
+            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==parent_event.key, ancestor=gift_exchange_key)
+            participant_list = query.fetch(100)
+            for participant in participant_list:
+                display_name = participant.display_name
+                new_participant = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, display_name, event_key)
+                new_participant.user_key = participant.user_key
+                new_participant.family = participant.family
+                new_participant.previous_target = participant.target
+                new_participant.put()
+        self.redirect('/admin/event?event=' + event.key.urlsafe())
+
 class StatusChangeHandler(webapp2.RequestHandler):
     """Handler for changing for starting or stopping an event"""
     def post(self):
@@ -231,7 +272,7 @@ class StatusChangeHandler(webapp2.RequestHandler):
             event = event_key.get()
         if event:
             if status_change_type == 'start':
-                StatusChangeHandler._assign_users(get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event_key)
+                StatusChangeHandler._assign_users(datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event_key)
                 event.has_started = True
                 event.put()
             if status_change_type == 'stop':
@@ -244,20 +285,77 @@ class StatusChangeHandler(webapp2.RequestHandler):
         """Helper method for assigning targets to all users in a given event."""
         query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event_key, ancestor=gift_exchange_key)
         participant_list = query.fetch(100)
-        index = 0
+        need_to_give = list(participant_list)
+        need_a_giver = list(participant_list)
+        #randomize list and then brute force for acceptable assignment
+        random.shuffle(need_to_give)
+        random.shuffle(need_a_giver)
+        source_user = need_to_give[0]
+        for target_user in need_a_giver:
+            if StatusChangeHandler._is_valid_assignment(source_user, target_user):
+                if StatusChangeHandler._can_assign(source_user, target_user, need_to_give, need_a_giver):
+                    break
+        #Save all participants
         for participant in participant_list:
-            if index == 0:
-                participant.target = participant_list[len(participant_list)-1].display_name
-            else:
-                participant.target = participant_list[index - 1].display_name
             participant.put()
-            index = index + 1
-        #TODO: implement
         return
         
+    @staticmethod
+    def _can_assign(source_user, target_user, need_to_give, need_a_giver):
+        """Returns where the source_user can give to target_user by checking if there is still a valid assignment scheme for other users"""        
+        source_user.target = target_user.display_name
+        source_index = need_to_give.index(source_user)
+        need_to_give.remove(source_user)
+        target_index = need_a_giver.index(target_user)
+        need_a_giver.remove(target_user)
+
+        if len(need_to_give) == 0:
+            return True
+        for giver in need_to_give:
+            found_possible_user = False
+            for givee in need_a_giver:
+                if StatusChangeHandler._is_valid_assignment(giver, givee):
+                    found_possible_user = True
+                    break
+            if not found_possible_user:
+                source_user.target = None
+                need_to_give.insert(source_index, source_user)
+                need_a_giver.insert(target_index, target_user)
+                return False
+            for givee in need_a_giver:
+                if StatusChangeHandler._is_valid_assignment(giver, givee):
+                    if StatusChangeHandler._can_assign(giver, givee, need_to_give, need_a_giver):
+                        return True
+                    else:
+                        source_user.target = None
+                        need_to_give.insert(source_index, source_user)
+                        need_a_giver.insert(target_index, target_user)
+        source_user.target = None
+        need_to_give.insert(source_index, source_user)
+        need_a_giver.insert(target_index, target_user)
+        return False
+    
+    
+    @staticmethod
+    def _is_valid_assignment(source_user, target_user):
+        """Returns whether source_user can give to target_user"""
+        #Cannot give to yourself
+        if source_user.display_name == target_user.display_name:
+            return False
+        #Cannot give to the person you gave to last year
+        if source_user.previous_target == target_user.display_name:
+            return False
+        #If you are in a family, cannot give to someone in your own family
+        if source_user.family:
+            if source_user.family == target_user.family:
+                return False
+        return True
+        
+
 app = webapp2.WSGIApplication([
     ('/admin/', HomeHandler),
     ('/admin/event', EventHandler),
+    ('/admin/inherit', InheritHandler),
     ('/admin/statuschange', StatusChangeHandler),
     ('/admin/delete', DeleteHandler),
     ('/admin/report', ReportHandler)
