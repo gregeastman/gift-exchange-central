@@ -1,5 +1,6 @@
 function add_row()
 {
+	save_all($("#tbl_participants tbody"));
 	$("#tbl_participants tbody").append(
 		"<tr>"+
 		"<td><input type='text' class='participant_display_name' /></td>"+
