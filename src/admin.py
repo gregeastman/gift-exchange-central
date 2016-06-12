@@ -138,7 +138,7 @@ class EventHandler(webapp2.RequestHandler):
                 error_message = EventHandler._save_participants(gift_exchange_key, event_key, data['participant_list'])
                 if error_message:
                     message = error_message
-        self.response.out.write(json.dumps(({'message': message, 'event_string': event_string})))
+        self.response.out.write(json.dumps(({'message': message, 'event_string': event_string, 'money_limit': event.money_limit})))
     
     @staticmethod
     def _save_participants(gift_exchange_key, event_key, participant_list):
@@ -285,6 +285,8 @@ class StatusChangeHandler(webapp2.RequestHandler):
         """Helper method for assigning targets to all users in a given event."""
         query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event_key, ancestor=gift_exchange_key)
         participant_list = query.fetch(100)
+        if len(participant_list) == 0:
+            return
         need_to_give = list(participant_list)
         need_a_giver = list(participant_list)
         #randomize list and then brute force for acceptable assignment

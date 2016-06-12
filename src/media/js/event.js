@@ -100,7 +100,7 @@ function save_to_database()
 				row_object["family"] = $(this).find('td').eq(2).text();
 				participant_list.push(row_object); 
 			});
-	
+	$("#span_status_message").text("Saving...");
 	$.ajax({
           type: "POST",
           url: "/admin/event",
@@ -116,18 +116,12 @@ function save_to_database()
         .done(function( data ) {
         	if ($("#txt_event").val() != data["event_string"])
         	{
-        		window.location.replace("/admin/event?event=" + data["event_string"]);
-        		/* 
-        		 * TODO: Update this to manipulate the DOM.
-        		 * 			Set the event key in txt_event
-        		 * 			Set the money limit if it used the default
-        		 * 			Enable the button to start the event
-        		 */
-        		//$("#txt_event").val(data["event_string"]);
-        	} else 
-        	{
-        		set_temporary_message("#span_status_message", data["message"])
-        	}	   
+        		$("#txt_event").val(data["event_string"]);
+        		$("#btn_start_event").show();
+        		$("#event_status").text("The event has not yet started");
+        		$("#txt_money_limit").val(data["money_limit"]);
+        	}
+        	set_temporary_message("#span_status_message", data["message"]);	   
         });
 }
 
@@ -147,8 +141,9 @@ function start_event()
   		window.location.replace("/admin/event?event=" + data["event_string"]);
   		/* 
   		 * TODO: Update this to manipulate the DOM.
+  		 * 			Disable table for editing
   		 * 			Disable the button to start the event
-  		 * 			Enabled the button to stop the event
+  		 * 			Enable the button to stop the event
   		 */
       });
 }
@@ -166,11 +161,8 @@ function end_event()
         })
       })
       .done(function( data ) {
-  		window.location.replace("/admin/event?event=" + data["event_string"]);
-  		/* 
-  		 * TODO: Update this to manipulate the DOM.	
-  		 * 			Disable the button to stop the event
-  		 */
+  		$("#btn_end_event").hide();
+  		$("#event_status").text("The event has ended");
       });
 }
 
