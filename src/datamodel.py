@@ -74,7 +74,7 @@ class GiftExchangeParticipant(ndb.Model):
     user_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeUser)
     display_name = ndb.StringProperty(indexed=True)
     family = ndb.StringProperty(indexed=False)
-    ideas = ndb.TextProperty(default='') #TODO: consider making a repeated property
+    ideas = ndb.TextProperty(default='')
     event_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeEvent)
     target = ndb.StringProperty(indexed=True) #represents display_name of user in same event
     is_target_known = ndb.BooleanProperty(indexed=False)

@@ -17,7 +17,6 @@
     <h4>Here's what you are asking for (Remember this should cost around {{ money_limit }}):</h4>
     <form action="/update" method="post">
         <textarea name="ideas" cols="60" rows="10">{{ gift_exchange_participant.ideas }}</textarea><br />
-        <input type="hidden" name="email_subject" value="Secret Santa Gift Idea Update" />
         <input type="hidden" name="gift_exchange_participant" value="{{ gift_exchange_participant.key.urlsafe() }}" />
         <input type="submit" value="Update" />
     </form>

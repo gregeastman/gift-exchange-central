@@ -62,15 +62,18 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     body = 'Hello ' + participant.display_name + ',\n\n' + content
     body = body + '\n\n\n-------------------------------------------------------------------------'
     body = body + '\nThis is an auto-generated email from ' + participant.get_event().display_name + '. Please do not reply to this email.'
+    body = body + '\nIf you have questions, please email Greg (greg.eastman@gmail.com)'
+    plain_text = body
     if unsubscribe_link:
         body = body + '\n<a href="' + unsubscribe_link + '">Unsubscribe from automated updates</a>'
-    body = body + '\nIf you have questions, please email Greg (greg.eastman@gmail.com)'
+        plain_text = plain_text + '\nUnsubscribe: ' + unsubscribe_link
     message = mail.EmailMessage(
                     #sender='anonymous@gift-exchange-central.appspotmail.com',
-                    sender='greg.eastman@gmail.com', #TODO: figure out how to replace
+                    sender='greg.eastman@gmail.com', #TODO: figure out how to send from anonymous email
                     subject=subject)
     message.to = participant.get_user().email
-    message.body = body
+    message.body = plain_text
+    message.html = '<html><head></head><body>' + body.replace('\n', '<br />') + '</body></html>'
     message.send()    
     return
 
@@ -184,7 +187,7 @@ class UpdateHandler(webapp2.RequestHandler):
             url_params = ''
             if gift_exchange_participant is not None:
                 ideas = self.request.get('ideas')
-                email_subject = self.request.get('email_subject')
+                email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update' 
                 gift_exchange_participant.ideas = ideas
                 gift_exchange_participant.put()
                 url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
@@ -307,7 +310,7 @@ class MessageHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
             if target_participant.email:
-                send_email_helper(target_participant, self.request.get('email_subject'), self.request.get('email_body'), None)
+                send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', self.request.get('email_body'), None)
             self.redirect('/main?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe())
             return
         self.redirect('/home')
