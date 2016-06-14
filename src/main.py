@@ -25,6 +25,8 @@ import datamodel
 import jinja2
 import webapp2
 import json
+import re
+import bleach
 
 _JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__),'templates')),
@@ -33,6 +35,7 @@ _JINJA_ENVIRONMENT = jinja2.Environment(
 
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 
+_urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
 
 def is_key_valid_for_user(participant_string):
     """Determines if a parameter is valid for the user who is currently logged in
@@ -63,12 +66,37 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
         body = body + '\n<a href="' + unsubscribe_link + '">Unsubscribe from automated updates</a>'
     body = body + '\nIf you have questions, please email Greg (greg.eastman@gmail.com)'
     message = mail.EmailMessage(
-                    sender='anonymous@gift-exchange-central.appspotmail.com',
+                    #sender='anonymous@gift-exchange-central.appspotmail.com',
+                    sender='greg.eastman@gmail.com', #TODO: figure out how to replace
                     subject=subject)
     message.to = participant.get_user().email
     message.body = body
     message.send()    
     return
+
+def free_text_to_safe_html_markup(text, maxlinklength):
+    def replacewithlink(matchobj):
+        url = matchobj.group(0)
+        text = unicode(url)
+        if text.startswith('http://'):
+            text = text.replace('http://', '', 1)
+        elif text.startswith('https://'):
+            text = text.replace('https://', '', 1)
+
+        if text.startswith('www.'):
+            text = text.replace('www.', '', 1)
+
+        if len(text) > maxlinklength:
+            halflength = maxlinklength / 2
+            text = text[0:halflength] + '...' + text[len(text) - halflength:]
+
+        return '<a class="comurl" href="' + url + '" target="_blank" rel="nofollow">' + text + '<img class="imglink" src="/media/images/linkout.png"></a>'
+
+    if text != None and text != '':
+        text = bleach.clean(text)
+        text = _urlfinderregex.sub(replacewithlink, text)
+        return text.replace('\n', '<br />')
+    return ''
 
 class LoginHandler(webapp2.RequestHandler):
     """The class that handles requests for logins"""
@@ -79,7 +107,7 @@ class LoginHandler(webapp2.RequestHandler):
             self.redirect('/home')
         else:
             template_values = {
-                    'page_title': 'Secret Santa Login',
+                    'page_title': 'Gift Exchange Login',
                     'login_url': users.create_login_url(self.request.uri)
                 }
             template = _JINJA_ENVIRONMENT.get_template('login.html')
@@ -107,7 +135,7 @@ class HomeHandler(webapp2.RequestHandler):
         else:
             template_values = {
                     'participant_list': participant_list,
-                    'page_title': 'Secret Santa Homepage',
+                    'page_title': 'Gift Exchange Homepage',
                     'is_admin_user': users.is_current_user_admin(),
                     'logout_url': users.create_logout_url(self.request.uri)
                 }
@@ -127,10 +155,16 @@ class MainHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
+            target_ideas = ''
+            if target_participant is not None:
+                target_ideas = free_text_to_safe_html_markup(target_participant.ideas, 25)
+            if target_ideas == '':
+                target_ideas = target_participant.display_name + ' hasn\'t asked for anything yet.'
             template_values = {
                     'page_title': gift_exchange_participant.get_event().display_name + ' Homepage',
                     'gift_exchange_participant': gift_exchange_participant,
                     'target_participant': target_participant,
+                    'target_ideas': target_ideas,
                     'money_limit': gift_exchange_participant.get_event().money_limit,
                     'is_admin_user': users.is_current_user_admin(),
                     'logout_url': users.create_logout_url(self.request.uri)

@@ -1,0 +1,4 @@
+#pip requirements for packages not supplied by app engine
+#for repeatable installation:
+#pip install -t lib -r pip_requirements.txt
+bleach
