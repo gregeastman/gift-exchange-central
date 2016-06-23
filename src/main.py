@@ -64,16 +64,16 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     body = body + '\nThis is an auto-generated email from ' + participant.get_event().display_name + '. Please do not reply to this email.'
     body = body + '\nIf you have questions, please email Greg (greg.eastman@gmail.com)'
     plain_text = body
+    body = body.replace('\n', '<br />')
     if unsubscribe_link:
-        body = body + '\n<a href="' + unsubscribe_link + '">Unsubscribe from automated updates</a>'
+        body = body + '<br /><a href="' + unsubscribe_link + '">Unsubscribe from automated updates</a>'
         plain_text = plain_text + '\nUnsubscribe: ' + unsubscribe_link
     message = mail.EmailMessage(
-                    #sender='anonymous@gift-exchange-central.appspotmail.com',
-                    sender='greg.eastman@gmail.com', #TODO: figure out how to send from anonymous email
+                    sender='anonymous@gift-exchange-central.appspotmail.com',
                     subject=subject)
     message.to = participant.get_user().email
     message.body = plain_text
-    message.html = '<html><head></head><body>' + body.replace('\n', '<br />') + '</body></html>'
+    message.html = '<html><head></head><body>' + body + '</body></html>'
     message.send()    
     return
 
