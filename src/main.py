@@ -115,6 +115,7 @@ class LoginHandler(webapp2.RequestHandler):
                 }
             template = _JINJA_ENVIRONMENT.get_template('login.html')
             self.response.write(template.render(template_values))
+        return
 
 class HomeHandler(webapp2.RequestHandler):
     """The home page of the gift exchange app. This finds any events that a user is in"""
@@ -180,17 +181,18 @@ class MainHandler(webapp2.RequestHandler):
 class UpdateHandler(webapp2.RequestHandler):
     """Class that handles updates to the participant page"""
     def post(self):
-        """This handles post requests. This currently handles posts from forms"""
-        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        """This handles post requests. Requires a JSON object"""
+        data = json.loads(self.request.body)
+        ret = is_key_valid_for_user(data['gift_exchange_participant'])
+        message = 'Ideas could not be updated'
         if ret[0]:
             gift_exchange_participant = ret[1]
-            url_params = ''
             if gift_exchange_participant is not None:
-                ideas = self.request.get('ideas')
+                ideas = data['ideas']
                 email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update' 
                 gift_exchange_participant.ideas = ideas
                 gift_exchange_participant.put()
-                url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
+                message = 'Ideas successfully updated'
                 giver = gift_exchange_participant.get_giver()
                 if giver is not None:
                     user = giver.get_user()
@@ -201,26 +203,22 @@ class UpdateHandler(webapp2.RequestHandler):
                         url_length = len(self.request.url) - len(self.request.query_string) - len('update?') + 1
                         unsubscribe_link = self.request.url[0:url_length] + 'unsubscribe?gift_exchange_participant=' + giver.key.urlsafe()
                         send_email_helper(giver, email_subject, body, unsubscribe_link)
-            self.redirect('/main' + url_params)
-            return
-        self.redirect('/home')
+        self.response.out.write(json.dumps(({'message': message})))
         
-
 class AssignmentHandler(webapp2.RequestHandler):
     """The handler for assigning requests."""
     def post(self):
-        """This handles the post request for assigning users. Uses forms"""
-        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        """This handles the post request for assigning users. Requires a JSON object"""
+        data = json.loads(self.request.body)
+        ret = is_key_valid_for_user(data['gift_exchange_participant'])
+        target = ''
         if ret[0]:
             gift_exchange_participant = ret[1]
-            url_params = ''
             if gift_exchange_participant is not None:
                 gift_exchange_participant.is_target_known = True
+                target = gift_exchange_participant.target
                 gift_exchange_participant.put()
-                url_params = '?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe()
-            self.redirect('/main' + url_params)
-            return
-        self.redirect('/home')
+        self.response.out.write(json.dumps(({'target': target})))
 
 class PreferencesHandler(webapp2.RequestHandler):
     """The handler for updating preferences."""
