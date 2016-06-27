@@ -161,7 +161,7 @@ class MainHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_participant.event_key)
             target_ideas = ''
             if target_participant is not None:
-                target_ideas = free_text_to_safe_html_markup(target_participant.ideas, 25)
+                target_ideas = free_text_to_safe_html_markup(target_participant.ideas, 40)
             if target_ideas == '':
                 target_ideas = target_participant.display_name + ' hasn\'t asked for anything yet.'
             template_values = {

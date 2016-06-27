@@ -7,17 +7,19 @@
     <h2>Welcome {{ gift_exchange_participant.display_name }}</h2>
     {% if gift_exchange_participant.is_target_known %}
     	<h3>You've been assigned {{ gift_exchange_participant.target }}</h3>
-        <h4>Here's what {{ gift_exchange_participant.target }} wants:</h4>
-        <p>{% autoescape false %}{{ target_ideas }}{% endautoescape %}</p>
+    	<div  class="ideas">
+        	<h4>Here's what {{ gift_exchange_participant.target }} wants:</h4>
+        	<p>{% autoescape false %}{{ target_ideas }}{% endautoescape %}</p>
         {% if target_participant.display_name %}
-            <p><a href="/message?gift_exchange_participant={{ gift_exchange_participant.key.urlsafe() }}">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></p>
+        </div>
+        <p><a href="/message?gift_exchange_participant={{ gift_exchange_participant.key.urlsafe() }}">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></p>
         {% endif %}
     {% else %}
         <h3>You don't have somebody to give a gift to yet.</h3>
         <input type="button" onclick="javascript:get_assignment()" value="Get Assignment" />
     {% endif %}
     <h4>Here's what you are asking for (Remember this should cost around {{ money_limit }}):</h4>
-    <textarea id="txt_ideas" cols="60" rows="10">{{ gift_exchange_participant.ideas }}</textarea><br />
+    <textarea id="txt_ideas" cols="70" rows="10">{{ gift_exchange_participant.ideas }}</textarea><br />
     <input type="button" onclick="javascript:update_ideas()" value="Update" />
     <div>
 		<i><span id="span_status_message"></span></i>
