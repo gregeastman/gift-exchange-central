@@ -27,7 +27,7 @@ function get_assignment()
         })
       })
       .done(function( data ) {
-    	  location.reload();
+    	  window.location.reload();
     	  //could avoid the reload, but would also have to send up the ideas
     	  //target = data["target"];
       });

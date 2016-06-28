@@ -282,11 +282,11 @@ class MessageHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
             target_has_email = False
-            if target_participant.email:
+            if target_participant.get_user().email:
                 target_has_email = True
             template_values = {
                                'gift_exchange_participant': gift_exchange_participant,
-                               'target_participant': target_participant,
+                               'target_participant': target_participant.display_name,
                                'target_has_email': target_has_email,
                                'page_title': 'Send A Message',
                                'is_admin_user': users.is_current_user_admin(),
@@ -298,20 +298,21 @@ class MessageHandler(webapp2.RequestHandler):
         self.redirect('/home')
     
     def post(self):
-        """Handles posts requests for the message class. Will send an email to the target"""
-        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
+        """Handles posts requests for the message class. Will send an email to the target. Requires a JSON object"""
+        data = json.loads(self.request.body)
+        ret = is_key_valid_for_user(data['gift_exchange_participant'])
+        participant_key = "";
         if ret[0]:
             gift_exchange_participant = ret[1]
+            participant_key = gift_exchange_participant.key.urlsafe()
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
             target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
-            if target_participant.email:
-                send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', self.request.get('email_body'), None)
-            self.redirect('/main?gift_exchange_participant=' + gift_exchange_participant.key.urlsafe())
-            return
-        self.redirect('/home')
+            if target_participant.get_user().email:
+                send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', data['email_body'], None)
+        self.response.out.write(json.dumps(({'gift_exchange_participant_key': participant_key})))
 
 app = webapp2.WSGIApplication([
     ('/', LoginHandler),
@@ -323,4 +324,4 @@ app = webapp2.WSGIApplication([
     ('/update', UpdateHandler),
     ('/unsubscribe', UnsubscribeHandler),
     ('/assign', AssignmentHandler)
-], debug=True)
+], debug=False)

@@ -1,12 +1,15 @@
 {% extends "base.html" %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/message.js"></script>
+{% endblock %}
 {% block content %}
 	{% if target_has_email %}
 	<h2>Send an anonymous email to {{ target_participant }}</h2>
-	<form action="/message" method="post">
-		<textarea name="email_body" cols="60" rows="10"></textarea><br />
-		<input type="hidden" name="gift_exchange_participant" value="{{ gift_exchange_participant.key.urlsafe() }}" />
-		<input type="submit" value="Send" /> 
-	</form>
+	<div>
+		<textarea id="txt_email_body" cols="80" rows="24"></textarea><br />
+		<input type="hidden" id="txt_gift_exchange_participant" value="{{ gift_exchange_participant.key.urlsafe() }}" />
+		<input type="button" onclick="javascript:send_message()" value="Send" />
+	</div>
 	{% else %}
 	<h2>{{ target_participant }} has not set up an email address</h2>
 	{% endif %}

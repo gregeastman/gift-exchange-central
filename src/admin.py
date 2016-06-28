@@ -361,4 +361,4 @@ app = webapp2.WSGIApplication([
     ('/admin/statuschange', StatusChangeHandler),
     ('/admin/delete', DeleteHandler),
     ('/admin/report', ReportHandler)
-], debug=True)
+], debug=False)
