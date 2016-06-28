@@ -71,9 +71,11 @@ class EventHandler(webapp2.RequestHandler):
         event = None
         event_string = self.request.get('event')
         if event_string:
-            #consider trapping error - also consider other places doing ndb.Key
-            event_key = ndb.Key(urlsafe=event_string)
-            event = event_key.get()
+            try:
+                event_key = ndb.Key(urlsafe=event_string)
+                event = event_key.get()
+            except:
+                pass
         event_display_name = _DEFAULT_DISPLAY_NAME
         money_limit = ''
         participant_list = []
@@ -118,8 +120,11 @@ class EventHandler(webapp2.RequestHandler):
             message = 'You must select a valid display name'
         else:
             if event_string:
-                event_key = ndb.Key(urlsafe=event_string)
-                event = event_key.get()
+                try:
+                    event_key = ndb.Key(urlsafe=event_string)
+                    event = event_key.get()
+                except:
+                    pass
             if event is None:
                 event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
                 needs_saving = True
@@ -193,8 +198,11 @@ class DeleteHandler(webapp2.RequestHandler):
         data = json.loads(self.request.body)
         event_string = data['event']
         if event_string:
-            event_key = ndb.Key(urlsafe=event_string)
-            event = event_key.get()
+            try:
+                event_key = ndb.Key(urlsafe=event_string)
+                event = event_key.get()
+            except:
+                pass
         if event is not None:
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
             participant_list = query.fetch(100)
@@ -212,8 +220,11 @@ class ReportHandler(webapp2.RequestHandler):
         event = None
         event_string = self.request.get('event')
         if event_string:
-            event_key = ndb.Key(urlsafe=event_string)
-            event = event_key.get()
+            try:
+                event_key = ndb.Key(urlsafe=event_string)
+                event = event_key.get()
+            except:
+                pass
         if event is None:
             self.redirect('/admin/')
         else:
@@ -238,8 +249,11 @@ class InheritHandler(webapp2.RequestHandler):
         parent_event = None
         parent_event_string = self.request.get('parent_event')
         if parent_event_string:
-            parent_event_key = ndb.Key(urlsafe=parent_event_string)
-            parent_event = parent_event_key.get()
+            try:
+                parent_event_key = ndb.Key(urlsafe=parent_event_string)
+                parent_event = parent_event_key.get()
+            except:
+                pass
         if parent_event is None:
             self.redirect('/admin/')
         else:
@@ -268,9 +282,12 @@ class StatusChangeHandler(webapp2.RequestHandler):
         event_string = data['event']
         status_change_type = data['status_change_type']
         if event_string:
-            event_key = ndb.Key(urlsafe=event_string)
-            event = event_key.get()
-        if event:
+            try:
+                event_key = ndb.Key(urlsafe=event_string)
+                event = event_key.get()
+            except:
+                pass
+        if event is not None:
             if status_change_type == 'start':
                 StatusChangeHandler._assign_users(datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event_key)
                 event.has_started = True

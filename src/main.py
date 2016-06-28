@@ -46,8 +46,13 @@ def is_key_valid_for_user(participant_string):
             The first piece being a boolean for whether the user is valid
             The second piece is the GiftExchangeParticipant object
     """
-    participant_key = ndb.Key(urlsafe=participant_string)
-    gift_exchange_participant = participant_key.get()
+    participant_key = None
+    gift_exchange_participant = None
+    try:
+        participant_key = ndb.Key(urlsafe=participant_string)
+        gift_exchange_participant = participant_key.get()
+    except:
+        pass
     if gift_exchange_participant is None:
         return (False, None)
     elif gift_exchange_participant.is_valid_for_google_id(users.get_current_user().user_id()) == False:
@@ -127,7 +132,7 @@ class HomeHandler(webapp2.RequestHandler):
         all_participants = []
         if user is not None:
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.user_key==user.key, ancestor=gift_exchange_key)
-            all_participants = query.fetch(100)
+            all_participants = query.fetch(200)
         participant_list = []
         for participant in all_participants:
             event = participant.get_event()
