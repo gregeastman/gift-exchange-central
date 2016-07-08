@@ -164,16 +164,15 @@ class MainHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
-            target_ideas = ''
+            target_idea_list = []
             if target_participant is not None:
-                target_ideas = free_text_to_safe_html_markup(target_participant.ideas, 40)
-            if target_ideas == '':
-                target_ideas = target_participant.display_name + ' hasn\'t asked for anything yet.'
+                for idea in target_participant.idea_list:
+                    target_idea_list.append(free_text_to_safe_html_markup(idea, 40))
             template_values = {
                     'page_title': gift_exchange_participant.get_event().display_name + ' Homepage',
                     'gift_exchange_participant': gift_exchange_participant,
                     'target_participant': target_participant,
-                    'target_ideas': target_ideas,
+                    'target_idea_list': target_idea_list,
                     'money_limit': gift_exchange_participant.get_event().money_limit,
                     'is_admin_user': users.is_current_user_admin(),
                     'logout_url': users.create_logout_url(self.request.uri)
@@ -184,7 +183,7 @@ class MainHandler(webapp2.RequestHandler):
         self.redirect('/home')
 
 class UpdateHandler(webapp2.RequestHandler):
-    """Class that handles updates to the participant page"""
+    """Class that handles updates to the participant's ideas"""
     def post(self):
         """This handles post requests. Requires a JSON object"""
         data = json.loads(self.request.body)
@@ -193,9 +192,9 @@ class UpdateHandler(webapp2.RequestHandler):
         if ret[0]:
             gift_exchange_participant = ret[1]
             if gift_exchange_participant is not None:
-                ideas = data['ideas']
+                idea_list = data['idea_list']
                 email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update' 
-                gift_exchange_participant.ideas = ideas
+                gift_exchange_participant.idea_list = idea_list
                 gift_exchange_participant.put()
                 message = 'Ideas successfully updated'
                 giver = gift_exchange_participant.get_giver()
@@ -204,7 +203,9 @@ class UpdateHandler(webapp2.RequestHandler):
                     if user.email and user.subscribed_to_updates:
                         body = gift_exchange_participant.display_name + ' has updated their profile with new ideas for '
                         body = body + gift_exchange_participant.get_event().display_name
-                        body = body + '\n\n' + ideas
+                        body = body + '\n\n'
+                        for idea in idea_list:
+                            body = body + idea + '\n'
                         url_length = len(self.request.url) - len(self.request.query_string) - len('update?') + 1
                         unsubscribe_link = self.request.url[0:url_length] + 'unsubscribe?gift_exchange_participant=' + giver.key.urlsafe()
                         send_email_helper(giver, email_subject, body, unsubscribe_link)

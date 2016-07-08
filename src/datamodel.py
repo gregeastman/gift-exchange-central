@@ -34,7 +34,6 @@ class GiftExchangeEvent(ndb.Model):
     def is_active(self):
         """Returns whether an event is active"""
         return (self.has_started and not self.has_ended)
-    
 
 class GiftExchangeUser(ndb.Model):
     """A user that could be used in anonymous giving sessions"""
@@ -74,7 +73,7 @@ class GiftExchangeParticipant(ndb.Model):
     user_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeUser)
     display_name = ndb.StringProperty(indexed=True)
     family = ndb.StringProperty(indexed=False)
-    ideas = ndb.TextProperty(default='')
+    idea_list = ndb.TextProperty(repeated=True)
     event_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeEvent)
     target = ndb.StringProperty(indexed=True) #represents display_name of user in same event
     is_target_known = ndb.BooleanProperty(indexed=False)
@@ -119,3 +118,9 @@ class GiftExchangeParticipant(ndb.Model):
         return user
         
 
+class GiftExchangeMessage(ndb.Model):
+    """A message between two users"""
+    sender_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
+    recipient_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
+    #consider adding a subject field
+    content = ndb.TextProperty(default='')

@@ -9,7 +9,7 @@ function add_row()
 		"<td><img src='/media/images/save.png' class='btn_save_row'><img src='/media/images/delete.png' class='btn_delete_row'/></td>"+
 		"</tr>");
 
-	
+		$(".participant_display_name").focus();
 		$(".btn_save_row").bind("click", save_row);		
 		$(".btn_delete_row").bind("click", delete_row);
 }
@@ -41,6 +41,7 @@ function edit_row()
 	td_family.html("<input type='text' class='family_name' value='"+td_family.html()+"'/>");
 	td_buttons.html("<img src='/media/images/save.png' class='btn_save_row'/>");
 
+	$(".participant_display_name").focus();
 	$(".btn_save_row").bind("click", save_row);
 	$(".btn_edit_row").bind("click", edit_row);
 	$(".btn_delete_row").bind("click", delete_row);
