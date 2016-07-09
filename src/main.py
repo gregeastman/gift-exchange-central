@@ -167,7 +167,7 @@ class MainHandler(webapp2.RequestHandler):
             target_idea_list = []
             if target_participant is not None:
                 for idea in target_participant.idea_list:
-                    target_idea_list.append(free_text_to_safe_html_markup(idea, 40))
+                    target_idea_list.append(free_text_to_safe_html_markup(idea, 60))
             template_values = {
                     'page_title': gift_exchange_participant.get_event().display_name + ' Homepage',
                     'gift_exchange_participant': gift_exchange_participant,
@@ -277,35 +277,10 @@ class UnsubscribeHandler(webapp2.RequestHandler):
 
 class MessageHandler(webapp2.RequestHandler):
     """Handler for page to send anonymous messages to your target"""
-    def get(self):
-        """Handles get requests for the message"""
-        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
-        if ret[0]:
-            gift_exchange_participant = ret[1]
-            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
-                                                                                gift_exchange_key, 
-                                                                                gift_exchange_participant.target,
-                                                                                gift_exchange_participant.event_key)
-            target_has_email = False
-            if target_participant.get_user().email:
-                target_has_email = True
-            template_values = {
-                               'gift_exchange_participant': gift_exchange_participant,
-                               'target_participant': target_participant.display_name,
-                               'target_has_email': target_has_email,
-                               'page_title': 'Send A Message',
-                               'is_admin_user': users.is_current_user_admin(),
-                               'logout_url': users.create_logout_url(self.request.uri)
-                            }
-            template = _JINJA_ENVIRONMENT.get_template('message.html')
-            self.response.write(template.render(template_values))
-            return
-        self.redirect('/home')
-    
     def post(self):
         """Handles posts requests for the message class. Will send an email to the target. Requires a JSON object"""
         data = json.loads(self.request.body)
+        message = 'Could not send message'
         ret = is_key_valid_for_user(data['gift_exchange_participant'])
         participant_key = "";
         if ret[0]:
@@ -317,8 +292,9 @@ class MessageHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
             if target_participant.get_user().email:
+                message = 'Message successfully sent'
                 send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', data['email_body'], None)
-        self.response.out.write(json.dumps(({'gift_exchange_participant_key': participant_key})))
+        self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
 
 app = webapp2.WSGIApplication([
     ('/', LoginHandler),

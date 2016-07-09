@@ -19,7 +19,7 @@ div.ideas
 	border: 1px solid; 
 	display: inline-block; 
 	padding: 10px; 
-	padding-right: 60px;
+	width: 650px;
 }
 
 span.error 
@@ -54,6 +54,25 @@ table.big_table
 {
 	font-size: 175%;
 	border-spacing: 10px;
+}
+
+.idea_text
+{
+	width: 100%;
+}
+
+table#tbl_ideas
+{
+	border: 1px solid;
+	border-collapse: collapse;
+	border-bottom: 2px solid;
+	min-width: 600px;
+	margin-bottom: 5px;
+}
+
+table#tbl_ideas tr
+{
+	outline: 1px solid;
 }
 
 

@@ -122,5 +122,6 @@ class GiftExchangeMessage(ndb.Model):
     """A message between two users"""
     sender_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
     recipient_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
+    time_sent = ndb.DateTimeProperty(indexed=True, auto_now_add=True);
     #consider adding a subject field
     content = ndb.TextProperty(default='')

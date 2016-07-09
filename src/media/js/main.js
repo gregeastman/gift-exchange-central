@@ -1,25 +1,15 @@
-function beforeunload_handler(e)
-{
-	var confirmationMessage = "You have unsaved ideas.";
-
-	e.returnValue = confirmationMessage;     // Gecko, Trident, Chrome 34+
-	return confirmationMessage; 			 // Gecko, WebKit, Chrome <34
-}
-
-
 function add_row()
 {
 	save_all($("#tbl_ideas tbody"));
 	$("#tbl_ideas tbody").append(
 		"<tr>"+
-		"<td><input type='text' class='idea_text' /></td>"+
+		"<td><input type='text' class='idea_text' size='70' /></td>"+
 		"<td><img src='/media/images/save.png' class='btn_save_row'><img src='/media/images/delete.png' class='btn_delete_row'/></td>"+
 		"</tr>");
 		
 		$(".idea_text").focus();
 		$(".btn_save_row").bind("click", save_row);		
 		$(".btn_delete_row").bind("click", delete_row);
-		window.addEventListener("beforeunload", beforeunload_handler);
 }
 
 function save_row()
@@ -40,21 +30,20 @@ function edit_row()
 	}
 	var td_buttons = par.children("td:nth-child(2)");
 
-	td_ideas.html("<input type='text' class='idea_text' value='"+td_ideas.html()+"'/>");
+	td_ideas.html("<input type='text' class='idea_text' size='70' value='"+td_ideas.html()+"'/>");
 	td_buttons.html("<img src='/media/images/save.png' class='btn_save_row'/>");
 
 	$(".idea_text").focus();
 	$(".btn_save_row").bind("click", save_row);
 	$(".btn_edit_row").bind("click", edit_row);
 	$(".btn_delete_row").bind("click", delete_row);
-	window.addEventListener("beforeunload", beforeunload_handler);
 }
 
 function delete_row()
 {
 	var par = $(this).parent().parent(); //tr
 	delete_row_helper(par);
-	window.addEventListener("beforeunload", beforeunload_handler);
+	update_ideas();
 }
 
 function delete_row_helper(par)
@@ -86,7 +75,7 @@ function save_row_helper(par)
 		$(".btn_edit_row").bind("click", edit_row);
 		$(".btn_delete_row").bind("click", delete_row);
 	}
-	
+	update_ideas();
 }
 
 function save_all(tbody)
@@ -121,9 +110,8 @@ function update_ideas()
         })
       })
       .done(function( data ) {
-    	  set_temporary_message("#span_status_message", data["message"])
+    	  //set_temporary_message("#span_status_message", data["message"])
       });
-	window.onbeforeunload = null;
 }
 
 function get_assignment()
@@ -144,11 +132,44 @@ function get_assignment()
       });
 }
 
+function send_to_target()
+{
+	$("#target_message").show();
+}
+
+function send_target_message()
+{
+	$.ajax({
+        type: "POST",
+        url: "/message",
+        dataType: "json",
+        data: JSON.stringify(
+      	{ 
+      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
+      	  "email_body": $("#txt_target_email_body").val()
+        })
+      })
+      .done(function( data ) {
+    	  set_temporary_message("#span_status_message", data["message"]);
+      });
+	close_target_message();
+}
+
+function cancel_target_message()
+{
+	close_target_message();
+}
+
+function close_target_message()
+{
+	$("#txt_target_email_body").val("");
+	$("#target_message").hide();
+}
 
 $(function()
 		{
 			//Add, Save, Edit and Delete functions code
 			$(".btn_edit_row").bind("click", edit_row);
 			$(".btn_delete_row").bind("click", delete_row);
-			$("#btn_add_idea").bind("click", add_row);
+			//$("#btn_add_idea").bind("click", add_row);
 		});

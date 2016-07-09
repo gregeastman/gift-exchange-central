@@ -8,6 +8,12 @@
     {% if gift_exchange_participant.is_target_known %}
     	<h3>You've been assigned {{ gift_exchange_participant.target }}</h3>
     	<div  class="ideas">
+    		<span><a href="#" onclick="javascript:send_to_target();">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></span>
+    		<div id="target_message" style="display:none;">
+        	<textarea id="txt_target_email_body" cols="80" rows="15"></textarea><br />
+        	<input type="button" onclick="javascript:send_target_message()" value="Send Message" />
+			<input type="button" onclick="javascript:cancel_target_message()" value="Cancel" />
+        	</div>
     		{% if target_idea_list|length > 0 %}
 	        	<h4>Here's what {{ gift_exchange_participant.target }} wants:</h4>
 	        	<ul>
@@ -18,19 +24,16 @@
         	{% else %}
         		<h4>{{ gift_exchange_participant.target }} hasn't asked for anything yet.</h4>
         	{% endif %}
-        {% if target_participant.display_name %}
         </div>
-        <p><a href="/message?gift_exchange_participant={{ gift_exchange_participant.key.urlsafe() }}">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></p>
-        {% endif %}
     {% else %}
         <h3>You don't have somebody to give a gift to yet.</h3>
         <input type="button" onclick="javascript:get_assignment()" value="Get Assignment" />
     {% endif %}
    	<div>
    		<h4>Here's what you are asking for (Remember this should cost around {{ money_limit }}):</h4>
-		<input type="button" id="btn_add_idea" value="Add Idea"/>
 		<table id="tbl_ideas">
-			<!-- TODO: set column widths -->
+			<col>
+			<col width="75">
 			<tbody>
 			{% for idea in gift_exchange_participant.idea_list %}
 				<tr>
@@ -40,7 +43,8 @@
 			{% endfor %}
 			</tbody>
 		</table>
-    	<input type="button" onclick="javascript:update_ideas()" value="Save Ideas" />
+		<input type="button" id="btn_add_idea" onclick="javascript:add_row()" value="Add Idea"/>
+    	<!-- <input type="button" onclick="javascript:update_ideas()" value="Save Ideas" /> --> 
 	</div>
     <div>
 		<i><span id="span_status_message"></span></i>
