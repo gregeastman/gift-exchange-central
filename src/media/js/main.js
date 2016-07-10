@@ -139,19 +139,7 @@ function send_to_target()
 
 function send_target_message()
 {
-	$.ajax({
-        type: "POST",
-        url: "/message",
-        dataType: "json",
-        data: JSON.stringify(
-      	{ 
-      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
-      	  "email_body": $("#txt_target_email_body").val()
-        })
-      })
-      .done(function( data ) {
-    	  set_temporary_message("#span_status_message", data["message"]);
-      });
+	send_message($("#txt_target_email_body").val(), "target");
 	close_target_message();
 }
 
@@ -164,6 +152,46 @@ function close_target_message()
 {
 	$("#txt_target_email_body").val("");
 	$("#target_message").hide();
+}
+
+function send_to_giver()
+{
+	$("#giver_message").show();
+}
+
+function send_giver_message()
+{
+	send_message($("#txt_giver_email_body").val(), "giver");
+	close_giver_message();
+}
+
+function cancel_giver_message()
+{
+	close_giver_message();
+}
+
+function close_giver_message()
+{
+	$("#txt_giver_email_body").val("");
+	$("#giver_message").hide();
+}
+
+function send_message(message_body, type)
+{
+	$.ajax({
+        type: "POST",
+        url: "/message",
+        dataType: "json",
+        data: JSON.stringify(
+      	{ 
+      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
+      	  "email_body": message_body,
+      	  "message_type": type
+        })
+      })
+      .done(function( data ) {
+    	  set_temporary_message("#span_status_message", data["message"]);
+      });
 }
 
 $(function()

@@ -1,27 +1,56 @@
 {% extends "base.html" %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/report.js"></script>
+{% endblock %}
 {% block content %}
-<h3>{{ event.display_name }}</h3>
-		<table id="tbl_events" border="1">
-			<thead>
-				<tr>
-					<th>Display Name</th>
-					<th>Family</th>
-					<th>Email</th>
-					<th>Who They're Giving To</th>
-					<th>Ideas</th>
-				</tr>
-			</thead>
-			<tbody>
-			{% for participant in participant_list %}
-				<tr>
-					<td>{{ participant.display_name }}</td>
-					<td>{{ participant.family }}</td>
-					<td>{{ participant.get_user().email }}</td>
-					<td>{{ participant.target }}</td>
-					<td>{{ participant.ideas }}</td>
-				</tr>
-			{% endfor %}
-			</tbody>
-		</table>
-
+<h1>{{ event.display_name }}</h1>
+<table id="tbl_events" border="1">
+	<thead>
+		<tr>
+			<th class="key">Participant Key</th>
+			<th class="display_name">Display Name</th>
+			<th class="family">Family</th>
+			<th class="email">Email</th>
+			<th class="target">Who They're Giving To</th>
+			<th class="is_target_known">Currently Assigned?</th>
+			<th class="previous_target">Who They Gave To Last Year</th>
+			<th class="ideas">Ideas</th>
+			<th class="subscribed_to_updates">Subscribed To Updates?</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for participant in participant_list %}
+		<tr>
+			<td class="key">{{ participant.key.urlsafe() }}</td>
+			<td class="display_name">{{ participant.display_name }}</td>
+			<td class="family">{{ participant.family }}</td>
+			<td class="email">{{ participant.get_user().email }}</td>
+			<td class="target">{{ participant.target }}</td>
+			<td class="is_target_known">{% if participant.is_target_known %}Yes{% else %}No{% endif %}</td>
+			<td class="previous_target">{{ participant.previous_target }}</td>
+			<td class="ideas">{% for idea in participant.idea_list %}{{ idea }}<br /> {% endfor %}</td>
+			<td class="subscribed_to_updates">{% if participant.get_user().subscribed_to_updates %}Yes{% else %}No{% endif %}</td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+<div>
+	<table>
+		<tr>
+			<td><label><input type="checkbox" id="key" />Participant Key</label></td>
+			<td><label><input type="checkbox" id="display_name" checked />Display Name</label></td>
+			<td><label><input type="checkbox" id="family" />Family</label></td>
+		</tr>
+		<tr>
+			<td><label><input type="checkbox" id="email" />Email</label></td>
+			<td><label><input type="checkbox" id="target" checked />Who They're Giving To</label></td>
+			<td><label><input type="checkbox" id="is_target_known" checked />Currently Assigned?</label></td>
+		</tr>
+		<tr>
+			<td><label><input type="checkbox" id="previous_target" />Who They Gave To Last Year</label></td>
+			<td><label><input type="checkbox" id="ideas" checked />Ideas</label></td>
+			<td><label><input type="checkbox" id="subscribed_to_updates" />Subscribed to Updates?</label></td>
+		</tr>
+	</table>
+</div>
 {% endblock %}

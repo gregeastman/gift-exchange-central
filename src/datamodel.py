@@ -94,11 +94,11 @@ class GiftExchangeParticipant(ndb.Model):
             return False
         return (user.google_user_id == google_user_id)
     
-    def get_giver(self):
+    def get_giver(self, allow_unknown_giver=False):
         """Gets the user who is giving to this participant, if that person knows"""
         query = GiftExchangeParticipant.query(GiftExchangeParticipant.target==self.display_name, GiftExchangeParticipant.event_key==self.event_key)
         giver = query.get()
-        if giver.is_target_known:
+        if giver.is_target_known or allow_unknown_giver:
             return giver
         return None
     
@@ -125,3 +125,9 @@ class GiftExchangeMessage(ndb.Model):
     time_sent = ndb.DateTimeProperty(indexed=True, auto_now_add=True);
     #consider adding a subject field
     content = ndb.TextProperty(default='')
+    
+    @staticmethod
+    def create_message(gift_exchange_key, sender, recipient, content):
+        message = GiftExchangeMessage(parent=gift_exchange_key, sender_key=sender.key, recipient_key=recipient.key, content=content)
+        message.put()
+        return message

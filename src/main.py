@@ -79,8 +79,7 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     message.to = participant.get_user().email
     message.body = plain_text
     message.html = '<html><head></head><body>' + body + '</body></html>'
-    message.send()    
-    return
+    message.send()
 
 def free_text_to_safe_html_markup(text, maxlinklength):
     def replacewithlink(matchobj):
@@ -287,13 +286,28 @@ class MessageHandler(webapp2.RequestHandler):
             gift_exchange_participant = ret[1]
             participant_key = gift_exchange_participant.key.urlsafe()
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
-                                                                                gift_exchange_key, 
-                                                                                gift_exchange_participant.target,
-                                                                                gift_exchange_participant.event_key)
-            if target_participant.get_user().email:
-                message = 'Message successfully sent'
-                send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', data['email_body'], None)
+            message_type = data['message_type']
+            email_body = data['email_body']
+            if not email_body:
+                message = 'Nothing to send'
+            else:
+                if message_type == 'target':
+                    target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
+                                                                                    gift_exchange_key, 
+                                                                                    gift_exchange_participant.target,
+                                                                                    gift_exchange_participant.event_key)
+                    if target_participant.get_user().email:
+                        message = 'Message successfully sent'
+                        send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', email_body, None)
+                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant, target_participant, email_body)
+                elif message_type == 'giver':
+                    giver = gift_exchange_participant.get_giver()
+                    message = 'Message successfully sent'
+                    if giver is not None:
+                        if giver.get_user().email:
+                            send_email_helper(giver, gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
+                    giver = gift_exchange_participant.get_giver(True)
+                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant, giver, email_body)
         self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
 
 app = webapp2.WSGIApplication([

@@ -230,7 +230,7 @@ class ReportHandler(webapp2.RequestHandler):
         else:
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
             query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100)
+            participant_list = query.fetch(200)
             template_values = {
                 'event': event,
                 'participant_list': participant_list,
@@ -241,6 +241,7 @@ class ReportHandler(webapp2.RequestHandler):
             template = _JINJA_ENVIRONMENT.get_template('report.html')
             self.response.write(template.render(template_values))
         return
+        
 
 class InheritHandler(webapp2.RequestHandler):
     """Handler for a particular event spawning a child event with the same defaults and previous targets filled in"""
