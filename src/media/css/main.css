@@ -1,29 +1,20 @@
-body 
+#div_message_center
 {
-	background-color: #F2F2F2;
-	color: #0066CC;
-	font-family: "Lucida Sans", "Gill Sans MT", "Gill Sans", GillSans, Arial, sans-serif;
-	line-height: 1.3;
-	padding-left: 2em;
+	display: none;
 }
 
-a:active { color: red; }
-
-a:link { color: #0000E6; }
-a:visited { color: #0000E6; }
-a:hover { color: #000066; }
-
-.collapsible a:link
+#div_target
 {
-	color: #0066CC;
+	display: none;
 }
 
-.collapsible a:visited
+#div_giver
 {
-	color: #0066CC;
+	display: none;
 }
 
-div.ideas 
+/*
+#div_ideas 
 { 
 	color: #006600; 
 	border: 1px solid; 
@@ -31,39 +22,11 @@ div.ideas
 	padding: 10px; 
 	width: 650px;
 }
+*/
 
-span.error 
+.subsection
 {
-	text-align: center;
-	color: #990000;	
-}
-
-div.toolbar 
-{
-	text-align: right; 
-	padding-bottom: 4px;
-}
-
-hr 
-{
-	color: #003300;
-	background-color: #003300;
-	height:3px;
-}
-
-/*---------------*/
-div.login 
-{
-	margin-left: auto;
-	margin-right: auto;
-	text-align: left;
-	width: 20em;
-}
-
-table.big_table
-{
-	font-size: 175%;
-	border-spacing: 10px;
+	margin-left: 50px;
 }
 
 .idea_text
@@ -81,21 +44,6 @@ table.big_table
 	padding-right: 15px;
 }
 
-.tr_link
-{
-	cursor:pointer;
-}
-
-.tr_link 
-{
-	color: #0000E6;
-}
-.tr_link:hover 
-{ 
-	color: #000066;
-	background-color: #D9D9D9;
-}
-
 table#tbl_ideas
 {
 	border: 1px solid;
@@ -109,61 +57,3 @@ table#tbl_ideas tr
 {
 	outline: 1px solid;
 }
-
-#div_message_center
-{
-	display: none;
-}
-
-#div_target
-{
-	display: none;
-}
-
-#div_giver
-{
-	display: none;
-}
-
-#div_modal_background 
-{
-	display: none;
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background-color: white;
-	opacity: .50;
-	-webkit-opacity: .5;
-	-moz-opacity: .5;
-	filter: alpha(opacity=50);
-	z-index: 1000;
-}
-    
-#div_modal_content 
-{
-	background-color: white;
-	border-radius: 10px;
-	-webkit-border-radius: 10px;
-	-moz-border-radius: 10px;
-	box-shadow: 0 0 20px 0 #222;
-	-webkit-box-shadow: 0 0 20px 0 #222;
-	-moz-box-shadow: 0 0 20px 0 #222;
-	display: none;
-	height: 480px;
-	left: 25%;
-	margin: -120px 0 0 -160px;
-	padding: 10px;
-	position: absolute;
-	top: 25%;
-	width: 600px;
-	z-index: 1000;
-}
-
-
-input[type=submit], input[type=button], .submit-row input { background:white;  bottom repeat-x; padding:3px; color:black; border:1px solid #bbb; border-color:#ddd #aaa #aaa #ddd; }
-input[type=submit]:active, input[type=button]:active {  background-position:top; }
-input[type=submit].default, .submit-row input.default { border:2px solid #5b80b2; background:#7CA0C7;  bottom repeat-x; font-weight:bold; color:white; }
-input[type=submit].default:active { background-position:top; }
-

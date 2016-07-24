@@ -2,7 +2,8 @@
 <html>
 <head>
     <!-- [START css] -->
-    <link type="text/css" rel="stylesheet" href="/media/css/main.css" rel="stylesheet">
+    <link type="text/css" rel="stylesheet" href="/media/css/base.css" rel="stylesheet">
+    {% block additional_css %}{% endblock %}
     <!-- [END css] -->
     <!-- [START script]-->
     {% block scripts %}
@@ -15,7 +16,7 @@
 </head>
 <body>
 	{% block toolbar %}
-    <div class="toolbar">
+    <div id="div_toolbar">
         <a href="/home">Home</a>
         {% if is_admin_user %}<a href="/admin/">Admin</a>{% endif %}
         <a href="/preferences">Account Preferences</a>

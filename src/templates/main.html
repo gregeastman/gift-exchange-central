@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block additional_css %}
+<link type="text/css" rel="stylesheet" href="/media/css/main.css" rel="stylesheet">
+{% endblock %}
 {% block additional_scripts %}
 <script type="text/javascript" src="/media/js/main.js"></script>
 {% endblock %}
@@ -7,7 +10,7 @@
     <h1>Welcome {{ gift_exchange_participant.display_name }}</h1>
     
     <h2 class="collapsible"><a href="#" onclick="javascript:toggle_message_center();"><img src="/media/images/expand.png" id="img_message_center_expand"/><img src="/media/images/collapse.png" id="img_message_center_collapse" style="display:none;"/>Message Center</a></h2>
-    <div id="div_message_center">
+    <div id="div_message_center" class="subsection">
 		{% if gift_exchange_participant.is_target_known %}
 			<h2>Messages With {{ gift_exchange_participant.target }}</h2>
 			<table id="tbl_target_messages" class="messages">
@@ -67,10 +70,10 @@
     
     
     <h2 class="collapsible"><a href="#" onclick="javascript:toggle_target();"><img src="/media/images/expand.png" id="img_target_expand"/><img src="/media/images/collapse.png" id="img_target_collapse" style="display:none;"/>Who You're Giving To</a></h2>
-    <div id="div_target">
+    <div id="div_target" class="subsection">
     {% if gift_exchange_participant.is_target_known %}
     	<h3>You've been assigned {{ gift_exchange_participant.target }}</h3>
-    	<div class="ideas">
+    	<div id="div_ideas">
     		<span><a href="#" onclick="javascript:send_to_target();">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></span>
     		<div id="target_message" style="display:none;">
         		<textarea id="txt_target_email_body" cols="80" rows="8"></textarea><br />
@@ -96,7 +99,7 @@
     
     
     <h2 class="collapsible"><a href="#" onclick="javascript:toggle_giver();"><img src="/media/images/expand.png" id="img_giver_expand"/><img src="/media/images/collapse.png" id="img_giver_collapse" style="display:none;"/>Your Ideas</a></h2>
-   	<div id="div_giver">
+   	<div id="div_giver" class="subsection">
    		<span><a href="#" onclick="javascript:send_to_giver();">Send a message to Santa</a></span>
    		<div id="giver_message" style="display:none;">
        		<textarea id="txt_giver_email_body" cols="80" rows="8"></textarea><br />
@@ -121,6 +124,6 @@
 	
 	
     <div>
-		<i><span id="span_status_message"></span></i>
+		<span id="span_status_message"></span>
 	</div>
 {% endblock %}
