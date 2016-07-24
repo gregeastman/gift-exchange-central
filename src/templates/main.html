@@ -4,10 +4,73 @@
 {% endblock %}
 {% block content %}
 	<input type="hidden" id="txt_gift_exchange_participant" value="{{ gift_exchange_participant.key.urlsafe() }}" />
-    <h2>Welcome {{ gift_exchange_participant.display_name }}</h2>
+    <h1>Welcome {{ gift_exchange_participant.display_name }}</h1>
+    
+    <h2 class="collapsible"><a href="#" onclick="javascript:toggle_message_center();"><img src="/media/images/expand.png" id="img_message_center_expand"/><img src="/media/images/collapse.png" id="img_message_center_collapse" style="display:none;"/>Message Center</a></h2>
+    <div id="div_message_center">
+		{% if gift_exchange_participant.is_target_known %}
+			<h2>Messages With {{ gift_exchange_participant.target }}</h2>
+			<table id="tbl_target_messages" class="messages">
+				<tbody>
+				{% for message in target_messages %}
+					<tr class="tr_link">
+						<td style="display:none;">{{ message.key.urlsafe() }}</td>
+						<td style="display:none;">{% autoescape false %}{{ message.get_escaped_content() }}{% endautoescape %}</td>
+						{% if message.sender_key == gift_exchange_participant.key %}
+						<td style="display:none">{{ gift_exchange_participant.display_name }}</td>
+						<td style="display:none">{{ gift_exchange_participant.target }}</td>
+						<td width="75px">Sent</td>
+						{% else %}
+						<td style="display:none">{{ gift_exchange_participant.target }}</td>
+						<td style="display:none">{{ gift_exchange_participant.display_name }}</td>
+						<td width="75px">Received</td>
+						{% endif %}
+						<td width="240px">{{ message.get_formatted_time_sent() }}</td>
+						<td>{{ message.content|truncate(80) }}</td>
+					</tr>
+				{% endfor %}
+				</tbody>
+			</table>
+		{% endif %}
+		<h2>Messages With Santa</h2>
+		<table id="tbl_giver_messages" class="messages">
+			<tbody>
+			{% for message in giver_messages %}
+				<tr class="tr_link">
+					<td style="display:none;">{{ message.key.urlsafe() }}</td>
+					<td style="display:none;">{% autoescape false %}{{ message.get_escaped_content() }}{% endautoescape %}</td>
+					{% if message.sender_key == gift_exchange_participant.key %}
+					<td style="display:none">{{ gift_exchange_participant.display_name }}</td>
+					<td style="display:none">Santa</td>
+					<td width="75px">Sent</td>
+					{% else %}
+					<td style="display:none">Santa</td>
+					<td style="display:none">{{ gift_exchange_participant.display_name }}</td>
+					<td width="75px">Received</td>
+					{% endif %}
+					<td width="240px">{{ message.get_formatted_time_sent() }}</td>
+					<td>{{ message.content|truncate(80) }}</td>
+				</tr>
+			{% endfor %}
+			</tbody>
+		</table>
+		
+		<div id="div_modal_background"></div>
+		<div id="div_modal_content">
+			<span id="span_time_sent" class="message_header"></span><br />
+			<span id="span_sender" class="message_header"></span><br />
+			<span id="span_recipient" class="message_header"></span><br /><br />
+			<span id="span_message_content"></span><br />
+		   	<button id="btn_message_close">Close Message</button>
+		</div>
+    </div>
+    
+    
+    <h2 class="collapsible"><a href="#" onclick="javascript:toggle_target();"><img src="/media/images/expand.png" id="img_target_expand"/><img src="/media/images/collapse.png" id="img_target_collapse" style="display:none;"/>Who You're Giving To</a></h2>
+    <div id="div_target">
     {% if gift_exchange_participant.is_target_known %}
     	<h3>You've been assigned {{ gift_exchange_participant.target }}</h3>
-    	<div  class="ideas">
+    	<div class="ideas">
     		<span><a href="#" onclick="javascript:send_to_target();">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></span>
     		<div id="target_message" style="display:none;">
         		<textarea id="txt_target_email_body" cols="80" rows="8"></textarea><br />
@@ -29,7 +92,11 @@
         <h3>You don't have somebody to give a gift to yet.</h3>
         <input type="button" onclick="javascript:get_assignment()" value="Get Assignment" />
     {% endif %}
-   	<div>
+    </div>
+    
+    
+    <h2 class="collapsible"><a href="#" onclick="javascript:toggle_giver();"><img src="/media/images/expand.png" id="img_giver_expand"/><img src="/media/images/collapse.png" id="img_giver_collapse" style="display:none;"/>Your Ideas</a></h2>
+   	<div id="div_giver">
    		<span><a href="#" onclick="javascript:send_to_giver();">Send a message to Santa</a></span>
    		<div id="giver_message" style="display:none;">
        		<textarea id="txt_giver_email_body" cols="80" rows="8"></textarea><br />
@@ -51,6 +118,8 @@
 		</table>
 		<input type="button" id="btn_add_idea" onclick="javascript:add_row()" value="Add Idea"/>
 	</div>
+	
+	
     <div>
 		<i><span id="span_status_message"></span></i>
 	</div>

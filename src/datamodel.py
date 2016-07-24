@@ -16,13 +16,43 @@
 #
 
 from google.appengine.ext import ndb
+import re
+import bleach
+from datetime import timedelta
 
-
+#constants
+message_type_to_target = 1
+message_type_to_giver = 2
 _DEFAULT_GIFT_EXCHANGE_NAME = 'playground'
+_urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
 
 def get_gift_exchange_key(gift_exchange_name):
     """Returns the default key that all data is stored under"""
     return ndb.Key('GiftExchange', gift_exchange_name)
+
+def free_text_to_safe_html_markup(text, maxlinklength):
+    def replacewithlink(matchobj):
+        url = matchobj.group(0)
+        text = unicode(url)
+        if text.startswith('http://'):
+            text = text.replace('http://', '', 1)
+        elif text.startswith('https://'):
+            text = text.replace('https://', '', 1)
+
+        if text.startswith('www.'):
+            text = text.replace('www.', '', 1)
+
+        if len(text) > maxlinklength:
+            halflength = maxlinklength / 2
+            text = text[0:halflength] + '...' + text[len(text) - halflength:]
+
+        return '<a class="comurl" href="' + url + '" target="_blank" rel="nofollow">' + text + '<img class="imglink" src="/media/images/linkout.png"></a>'
+
+    if text != None and text != '':
+        text = bleach.clean(text)
+        text = _urlfinderregex.sub(replacewithlink, text)
+        return text.replace('\n', '<br />')
+    return ''
 
 class GiftExchangeEvent(ndb.Model):
     """An event for anonymous giving"""
@@ -34,6 +64,11 @@ class GiftExchangeEvent(ndb.Model):
     def is_active(self):
         """Returns whether an event is active"""
         return (self.has_started and not self.has_ended)
+    
+    @staticmethod
+    def get_all_events_query(gift_exchange_key):
+        """Returns a query that will return all events"""
+        return GiftExchangeEvent.query(ancestor=gift_exchange_key)
 
 class GiftExchangeUser(ndb.Model):
     """A user that could be used in anonymous giving sessions"""
@@ -67,6 +102,11 @@ class GiftExchangeUser(ndb.Model):
             useful for display in UIs, so it should only be for using as a user facing intermediary"""
         query = GiftExchangeUser.query(GiftExchangeUser.email==email, ancestor=gift_exchange_key)
         return query.get()
+    
+    @staticmethod
+    def get_all_users_query(gift_exchange_key):
+        """Returns a query for getting all possible users of the system"""
+        return GiftExchangeUser.query(ancestor=gift_exchange_key)
 
 class GiftExchangeParticipant(ndb.Model):
     """A particular instantiation of a user in a giving event"""
@@ -94,11 +134,11 @@ class GiftExchangeParticipant(ndb.Model):
             return False
         return (user.google_user_id == google_user_id)
     
-    def get_giver(self, allow_unknown_giver=False):
+    def get_giver(self):
         """Gets the user who is giving to this participant, if that person knows"""
         query = GiftExchangeParticipant.query(GiftExchangeParticipant.target==self.display_name, GiftExchangeParticipant.event_key==self.event_key)
         giver = query.get()
-        if giver.is_target_known or allow_unknown_giver:
+        if giver.is_target_known:
             return giver
         return None
     
@@ -116,18 +156,69 @@ class GiftExchangeParticipant(ndb.Model):
             user = GiftExchangeParticipant(parent=gift_exchange_key, display_name=display_name, event_key=event_key)
             user.put()
         return user
+    
+    @staticmethod
+    def get_participants_in_event_query(gift_exchange_key, event_key):
+        """Returns a query for gathering all users in an event"""
+        return GiftExchangeParticipant.query(GiftExchangeParticipant.event_key==event_key, ancestor=gift_exchange_key)
+    
+    @staticmethod
+    def get_participants_by_user_query(gift_exchange_key, user_key):
+        """Gets the list of participants for a particular user"""
+        #Ideally this would query the event's status. Computed properties don't seem to be a perfect fit since
+        #they are updated upon put, and not all the users are updated upon the starting/ending of events
+        return GiftExchangeParticipant.query(GiftExchangeParticipant.user_key==user_key, ancestor=gift_exchange_key)
         
 
 class GiftExchangeMessage(ndb.Model):
     """A message between two users"""
     sender_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
-    recipient_key = ndb.KeyProperty(indexed=True, kind=GiftExchangeParticipant)
-    time_sent = ndb.DateTimeProperty(indexed=True, auto_now_add=True);
+    """An ndb key representing the sender of the message as a GiftExchangeParticipant"""
+    time_sent = ndb.DateTimeProperty(indexed=True, auto_now_add=True)
+    """An instant representing when the message was sent/created"""
+    message_type = ndb.IntegerProperty(indexed=True)
+    """An enumeration representing the type of message
+        A value of 1 means it is sent messages to who you're giving to
+        A value of 2 means it is messages to your anonymous giver"""
     #consider adding a subject field
     content = ndb.TextProperty(default='')
+    """The actual content of the message"""
     
+    def get_formatted_time_sent(self):
+        """Returns a nicely formatted time sent"""
+        central_time = self.time_sent + timedelta(hours=-6)
+        return central_time.strftime('%B %d, %Y %I:%M %p')
+    
+    def get_escaped_content(self):
+        """Gets an escaped and minimally linkified version of the content"""
+        return free_text_to_safe_html_markup(self.content, 100)
+        
     @staticmethod
-    def create_message(gift_exchange_key, sender, recipient, content):
-        message = GiftExchangeMessage(parent=gift_exchange_key, sender_key=sender.key, recipient_key=recipient.key, content=content)
+    def create_message(gift_exchange_key, sender_key, message_type, content):
+        """Creates a message and saves it to the database"""
+        message = GiftExchangeMessage(parent=gift_exchange_key, sender_key=sender_key, message_type=message_type, content=content)
         message.put()
         return message
+    
+    @staticmethod
+    def get_messages_from_participant_query(gift_exchange_key, gift_exchange_participant):
+        return GiftExchangeMessage.query(GiftExchangeMessage.sender_key==gift_exchange_participant.key, ancestor=gift_exchange_key)
+    
+    @staticmethod
+    def get_message_exchange_query(gift_exchange_key, giving_participant, target_participant):
+        """Returns a query that returns an ordered list of messages"""
+        return GiftExchangeMessage.query(
+                            ndb.OR(
+                                ndb.AND(
+                                    GiftExchangeMessage.sender_key==giving_participant.key,
+                                    GiftExchangeMessage.message_type==message_type_to_target
+                                    ), 
+                                ndb.AND(
+                                    GiftExchangeMessage.sender_key==target_participant.key, 
+                                    GiftExchangeMessage.message_type==message_type_to_giver
+                                    )
+                                ),
+                            ancestor=gift_exchange_key).order(-GiftExchangeMessage.time_sent)
+        
+        
+        

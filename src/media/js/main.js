@@ -194,10 +194,53 @@ function send_message(message_body, type)
       });
 }
 
+function show_message()
+{
+	td_list = $(this).closest('tr').children('td');
+	var message_key = td_list.eq(0).text();
+	var time_sent = td_list.eq(5).text();
+	var sender = td_list.eq(2).text();
+	var recipient = td_list.eq(3).text();
+	var content = td_list.eq(1).html();
+	$("#span_time_sent").html("Time Sent: " + time_sent);
+	$("#span_sender").html("Sender: " + sender);
+	$("#span_recipient").html("Recipient: " + recipient);
+	$("#span_message_content").html(content);
+	$("#div_modal_content, #div_modal_background").show();
+}
+
+function hide_background()
+{
+	$("#div_modal_content, #div_modal_background").hide();
+}
+
+function toggle_message_center()
+{
+	$("#img_message_center_expand").toggle();
+	$("#img_message_center_collapse").toggle();
+	$("#div_message_center").toggle();
+}
+
+function toggle_target()
+{
+	$("#img_target_expand").toggle();
+	$("#img_target_collapse").toggle();
+	$("#div_target").toggle();
+}
+
+function toggle_giver()
+{
+	$("#img_giver_expand").toggle();
+	$("#img_giver_collapse").toggle();
+	$("#div_giver").toggle();
+}
+
 $(function()
-		{
-			//Add, Save, Edit and Delete functions code
-			$(".btn_edit_row").bind("click", edit_row);
-			$(".btn_delete_row").bind("click", delete_row);
-			//$("#btn_add_idea").bind("click", add_row);
-		});
+{
+	//Add, Save, Edit and Delete functions code
+	$(".btn_edit_row").bind("click", edit_row);
+	$(".btn_delete_row").bind("click", delete_row);
+	//$("#btn_add_idea").bind("click", add_row);
+	$("#tbl_target_messages tr, #tbl_giver_messages tr").click(show_message);
+    $("#div_modal_background, #btn_message_close").click(hide_background);
+});

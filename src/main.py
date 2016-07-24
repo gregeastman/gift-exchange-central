@@ -25,8 +25,6 @@ import datamodel
 import jinja2
 import webapp2
 import json
-import re
-import bleach
 
 _JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__),'templates')),
@@ -34,8 +32,8 @@ _JINJA_ENVIRONMENT = jinja2.Environment(
     autoescape=True)
 
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
+_DEFAULT_MAX_RESULTS = 200
 
-_urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
 
 def is_key_valid_for_user(participant_string):
     """Determines if a parameter is valid for the user who is currently logged in
@@ -81,30 +79,6 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     message.html = '<html><head></head><body>' + body + '</body></html>'
     message.send()
 
-def free_text_to_safe_html_markup(text, maxlinklength):
-    def replacewithlink(matchobj):
-        url = matchobj.group(0)
-        text = unicode(url)
-        if text.startswith('http://'):
-            text = text.replace('http://', '', 1)
-        elif text.startswith('https://'):
-            text = text.replace('https://', '', 1)
-
-        if text.startswith('www.'):
-            text = text.replace('www.', '', 1)
-
-        if len(text) > maxlinklength:
-            halflength = maxlinklength / 2
-            text = text[0:halflength] + '...' + text[len(text) - halflength:]
-
-        return '<a class="comurl" href="' + url + '" target="_blank" rel="nofollow">' + text + '<img class="imglink" src="/media/images/linkout.png"></a>'
-
-    if text != None and text != '':
-        text = bleach.clean(text)
-        text = _urlfinderregex.sub(replacewithlink, text)
-        return text.replace('\n', '<br />')
-    return ''
-
 class LoginHandler(webapp2.RequestHandler):
     """The class that handles requests for logins"""
     def get(self):
@@ -130,12 +104,11 @@ class HomeHandler(webapp2.RequestHandler):
         user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
         all_participants = []
         if user is not None:
-            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.user_key==user.key, ancestor=gift_exchange_key)
-            all_participants = query.fetch(200)
+            query = datamodel.GiftExchangeParticipant.get_participants_by_user_query(gift_exchange_key, user.key)
+            all_participants = query.fetch(_DEFAULT_MAX_RESULTS)
         participant_list = []
         for participant in all_participants:
-            event = participant.get_event()
-            if event.is_active():
+            if participant.get_event().is_active():
                 participant_list.append(participant)
         if len(participant_list)==1:
             participant = participant_list[0]
@@ -164,14 +137,24 @@ class MainHandler(webapp2.RequestHandler):
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
             target_idea_list = []
+            target_messages = []
+            giver_messages = []
             if target_participant is not None:
+                query = datamodel.GiftExchangeMessage.get_message_exchange_query(gift_exchange_key, gift_exchange_participant, target_participant)
+                target_messages = query.fetch(_DEFAULT_MAX_RESULTS)
                 for idea in target_participant.idea_list:
-                    target_idea_list.append(free_text_to_safe_html_markup(idea, 60))
+                    target_idea_list.append(datamodel.free_text_to_safe_html_markup(idea, 60))           
+            giver = gift_exchange_participant.get_giver()
+            if giver:
+                query = datamodel.GiftExchangeMessage.get_message_exchange_query(gift_exchange_key, giver, gift_exchange_participant)
+                giver_messages = query.fetch(_DEFAULT_MAX_RESULTS)
             template_values = {
                     'page_title': gift_exchange_participant.get_event().display_name + ' Homepage',
                     'gift_exchange_participant': gift_exchange_participant,
                     'target_participant': target_participant,
                     'target_idea_list': target_idea_list,
+                    'target_messages': target_messages,
+                    'giver_messages': giver_messages,
                     'money_limit': gift_exchange_participant.get_event().money_limit,
                     'is_admin_user': users.is_current_user_admin(),
                     'logout_url': users.create_logout_url(self.request.uri)
@@ -262,15 +245,26 @@ class UnsubscribeHandler(webapp2.RequestHandler):
     """Handles unsubscribing a user"""
     def get(self):
         """Handles get requests for unsubscribing"""
-        ret = is_key_valid_for_user(self.request.get('gift_exchange_participant'))
-        if ret[0]:
-            gift_exchange_participant = ret[1]
+        #Don't require a user to be logged in to unsubcribe.
+        #This means that anybody can be unsubscribed with merely a link, but that is better
+        #  than being aggressive about disallowing unsubscribes, and the GUID shouldn't
+        #  be easy to reproduce
+        gift_exchange_participant = None
+        try:
+            participant_key = ndb.Key(urlsafe=self.request.get('gift_exchange_participant'))
+            gift_exchange_participant = participant_key.get()
+        except:
+            pass
+        if gift_exchange_participant is not None:
             user = gift_exchange_participant.get_user()
             if not user.subscribed_to_updates:
                 user.subscribed_to_updates = False
                 user.put()
+            template_values = {
+                           'page_title': 'Successfully Unsubscribed',
+                        }
             template = _JINJA_ENVIRONMENT.get_template('unsubscribe.html')
-            self.response.write(template.render({}))
+            self.response.write(template.render(template_values))
             return
         self.redirect('/home')
 
@@ -299,15 +293,16 @@ class MessageHandler(webapp2.RequestHandler):
                     if target_participant.get_user().email:
                         message = 'Message successfully sent'
                         send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', email_body, None)
-                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant, target_participant, email_body)
+                    message_type_enum = datamodel.message_type_to_target
+                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, message_type_enum, email_body)
                 elif message_type == 'giver':
                     giver = gift_exchange_participant.get_giver()
                     message = 'Message successfully sent'
                     if giver is not None:
                         if giver.get_user().email:
                             send_email_helper(giver, gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
-                    giver = gift_exchange_participant.get_giver(True)
-                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant, giver, email_body)
+                    message_type_enum = datamodel.message_type_to_giver
+                    datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, message_type_enum, email_body)
         self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
 
 app = webapp2.WSGIApplication([

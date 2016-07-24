@@ -33,6 +33,7 @@ _JINJA_ENVIRONMENT = jinja2.Environment(
 
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_DISPLAY_NAME = '<ENTER A NAME>'
+_DEFAULT_MAX_RESULTS = 200
 
 class HomeHandler(webapp2.RequestHandler):
     """Handles the requests to the admin home page"""
@@ -41,8 +42,8 @@ class HomeHandler(webapp2.RequestHandler):
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
-        query = datamodel.GiftExchangeEvent.query(ancestor=gift_exchange_key)
-        event_list = query.fetch(200) #maybe filter out the  events that have ended
+        query = datamodel.GiftExchangeEvent.get_all_events_query(gift_exchange_key)
+        event_list = query.fetch(_DEFAULT_MAX_RESULTS) #maybe filter out the  events that have ended
         not_started_events = []
         in_progress_events = []
         ended_events = []
@@ -80,8 +81,8 @@ class EventHandler(webapp2.RequestHandler):
         money_limit = ''
         participant_list = []
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        query = datamodel.GiftExchangeUser.query(ancestor=gift_exchange_key)
-        user_list = query.fetch(200)
+        query = datamodel.GiftExchangeUser.get_all_users_query(gift_exchange_key)
+        user_list = query.fetch(_DEFAULT_MAX_RESULTS)
         has_started = False
         has_ended = False
         if event is not None:
@@ -89,8 +90,8 @@ class EventHandler(webapp2.RequestHandler):
             money_limit = event.money_limit
             has_started = event.has_started
             has_ended = event.has_ended
-            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100)
+            query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
+            participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
         template_values = {
                 'event_string': event_string,
                 'event_display_name': event_display_name,
@@ -179,8 +180,8 @@ class EventHandler(webapp2.RequestHandler):
     @staticmethod
     def _prune_participants(gift_exchange_key, event_key, name_index):
         """Deletes any participants from a given event that aren't in the name_index"""
-        query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event_key, ancestor=gift_exchange_key)
-        participant_list = query.fetch(100)
+        query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event_key)
+        participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
         for participant in participant_list:
             if participant.display_name in name_index:
                 if ((participant.get_user().email != name_index[participant.display_name][0]) 
@@ -204,9 +205,13 @@ class DeleteHandler(webapp2.RequestHandler):
             except:
                 pass
         if event is not None:
-            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100)
+            participant_query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
+            participant_list = participant_query.fetch(_DEFAULT_MAX_RESULTS)
             for participant in participant_list:
+                message_query = datamodel.GiftExchangeMessage.get_messages_from_participant_query(gift_exchange_key, participant)
+                message_list = message_query.fetch(_DEFAULT_MAX_RESULTS*10)
+                for message in message_list:
+                    message.key.delete()
                 participant.key.delete()
             event.key.delete()
         self.response.out.write(json.dumps(({'message': 'Successfully deleted.'})))
@@ -229,8 +234,8 @@ class ReportHandler(webapp2.RequestHandler):
             self.redirect('/admin/')
         else:
             gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(200)
+            query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
+            participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
             template_values = {
                 'event': event,
                 'participant_list': participant_list,
@@ -264,8 +269,8 @@ class InheritHandler(webapp2.RequestHandler):
             event.money_limit = parent_event.money_limit
             event.put()
             event_key = event.key
-            query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==parent_event.key, ancestor=gift_exchange_key)
-            participant_list = query.fetch(100)
+            query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, parent_event.key)
+            participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
             for participant in participant_list:
                 display_name = participant.display_name
                 new_participant = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, display_name, event_key)
@@ -301,8 +306,8 @@ class StatusChangeHandler(webapp2.RequestHandler):
     @staticmethod
     def _assign_users(gift_exchange_key, event_key):
         """Helper method for assigning targets to all users in a given event."""
-        query = datamodel.GiftExchangeParticipant.query(datamodel.GiftExchangeParticipant.event_key==event_key, ancestor=gift_exchange_key)
-        participant_list = query.fetch(100)
+        query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event_key)
+        participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
         if len(participant_list) == 0:
             return
         need_to_give = list(participant_list)
