@@ -13,6 +13,14 @@
     <div id="div_message_center" class="subsection">
 		{% if gift_exchange_participant.is_target_known %}
 			<h2>Messages With {{ gift_exchange_participant.target }}</h2>
+			<span><a href="#" onclick="javascript:send_to_target();">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></span>
+    		<div id="target_message" style="display:none;">
+        		<textarea id="txt_target_email_body" cols="80" rows="8"></textarea><br />
+        		<input type="button" onclick="javascript:send_target_message()" value="Send Message" />
+				<input type="button" onclick="javascript:cancel_target_message()" value="Cancel" />
+        	</div>
+        	<br /><br />
+			{% if target_messages|length > 0 %}
 			<table id="tbl_target_messages" class="messages">
 				<tbody>
 				{% for message in target_messages %}
@@ -34,8 +42,19 @@
 				{% endfor %}
 				</tbody>
 			</table>
+			{% else %}
+			<h4>You haven't exchanged any messages with {{ gift_exchange_participant.target }} yet.</h4>
+			{% endif %}
 		{% endif %}
 		<h2>Messages With Santa</h2>
+		<span><a href="#" onclick="javascript:send_to_giver();">Send a message to Santa</a></span>
+   		<div id="giver_message" style="display:none;">
+       		<textarea id="txt_giver_email_body" cols="80" rows="8"></textarea><br />
+       		<input type="button" onclick="javascript:send_giver_message()" value="Send Message" />
+			<input type="button" onclick="javascript:cancel_giver_message()" value="Cancel" />
+       	</div>
+       	<br /><br />
+		{% if giver_messages|length > 0 %}
 		<table id="tbl_giver_messages" class="messages">
 			<tbody>
 			{% for message in giver_messages %}
@@ -57,6 +76,9 @@
 			{% endfor %}
 			</tbody>
 		</table>
+		{% else %}
+		<h4>You haven't exchanged any messages with Santa yet.</h4>
+		{% endif %}
 		
 		<div id="div_modal_background"></div>
 		<div id="div_modal_content">
@@ -72,23 +94,16 @@
     <h2 class="collapsible"><a href="#" onclick="javascript:toggle_target();"><img src="/media/images/expand.png" id="img_target_expand"/><img src="/media/images/collapse.png" id="img_target_collapse" style="display:none;"/>Who You're Giving To</a></h2>
     <div id="div_target" class="subsection">
     {% if gift_exchange_participant.is_target_known %}
-    	<h3>You've been assigned {{ gift_exchange_participant.target }}</h3>
     	<div id="div_ideas">
-    		<span><a href="#" onclick="javascript:send_to_target();">Send {{ gift_exchange_participant.target }} an anonymous email asking for more information</a></span>
-    		<div id="target_message" style="display:none;">
-        		<textarea id="txt_target_email_body" cols="80" rows="8"></textarea><br />
-        		<input type="button" onclick="javascript:send_target_message()" value="Send Message" />
-				<input type="button" onclick="javascript:cancel_target_message()" value="Cancel" />
-        	</div>
     		{% if target_idea_list|length > 0 %}
-	        	<h4>Here's what {{ gift_exchange_participant.target }} wants:</h4>
+	        	<h3>Here's what {{ gift_exchange_participant.target }} wants:</h3>
 	        	<ul>
 	        	{% for target_idea in target_idea_list %}
 	        		<li>{% autoescape false %}{{ target_idea }}{% endautoescape %}</li>
 	        	{% endfor %}
 	        	</ul>
         	{% else %}
-        		<h4>{{ gift_exchange_participant.target }} hasn't asked for anything yet.</h4>
+        		<h3>{{ gift_exchange_participant.target }} hasn't asked for anything yet.</h3>
         	{% endif %}
         </div>
     {% else %}
@@ -100,13 +115,7 @@
     
     <h2 class="collapsible"><a href="#" onclick="javascript:toggle_giver();"><img src="/media/images/expand.png" id="img_giver_expand"/><img src="/media/images/collapse.png" id="img_giver_collapse" style="display:none;"/>Your Ideas</a></h2>
    	<div id="div_giver" class="subsection">
-   		<span><a href="#" onclick="javascript:send_to_giver();">Send a message to Santa</a></span>
-   		<div id="giver_message" style="display:none;">
-       		<textarea id="txt_giver_email_body" cols="80" rows="8"></textarea><br />
-       		<input type="button" onclick="javascript:send_giver_message()" value="Send Message" />
-			<input type="button" onclick="javascript:cancel_giver_message()" value="Cancel" />
-       	</div>
-   		<h4>Here's what you are asking for (Remember this should cost around {{ money_limit }}):</h4>
+   		<h3>Here's what you are asking for (Remember this should cost around {{ money_limit }}):</h3>
 		<table id="tbl_ideas">
 			<col>
 			<col width="75">
