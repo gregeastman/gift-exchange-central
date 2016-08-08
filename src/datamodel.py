@@ -16,15 +16,27 @@
 #
 
 from google.appengine.ext import ndb
+from google.appengine.api import users
+
+from datetime import timedelta
+import os
+
 import re
 import bleach
-from datetime import timedelta
+
+import webapp2
+import jinja2
 
 #constants
 message_type_to_target = 1
 message_type_to_giver = 2
 _DEFAULT_GIFT_EXCHANGE_NAME = 'playground'
 _urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
+
+_JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__),'templates')),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
 
 def get_gift_exchange_key(gift_exchange_name):
     """Returns the default key that all data is stored under"""
@@ -53,6 +65,26 @@ def free_text_to_safe_html_markup(text, maxlinklength):
         text = _urlfinderregex.sub(replacewithlink, text)
         return text.replace('\n', '<br />')
     return ''
+
+class BaseHandler(webapp2.RequestHandler):
+    """A wrapper about webapp2.RequestHandler with customized methods"""
+    def __init__(self, *args, **kwargs):
+        super(BaseHandler, self).__init__(*args, **kwargs)
+        self._my_templates = {}
+        self._my_templates['page_title'] =  'Gift Exchange Central' #set default page title
+        self._my_templates['is_admin_user'] = users.is_current_user_admin()
+        self._my_templates['logout_url'] = users.create_logout_url(self.request.uri)
+    
+    def add_template_values(self, template_values):
+        """Adds a list of templates to the array"""
+        for key in template_values:
+            self._my_templates[key] = template_values[key]
+        return
+    
+    def render_template(self, template):
+        """Renders a remplate with the built up list of values"""
+        self.response.write(_JINJA_ENVIRONMENT.get_template(template).render(self._my_templates))
+
 
 class GiftExchangeEvent(ndb.Model):
     """An event for anonymous giving"""

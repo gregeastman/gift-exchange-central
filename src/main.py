@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 
 from google.appengine.api import users
 from google.appengine.ext import ndb
@@ -22,18 +21,11 @@ from google.appengine.api import mail
 
 import datamodel
 
-import jinja2
 import webapp2
 import json
 
-_JINJA_ENVIRONMENT = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__),'templates')),
-    extensions=['jinja2.ext.autoescape'],
-    autoescape=True)
-
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_MAX_RESULTS = 200
-
 
 def participant_required(handler):
     """
@@ -70,7 +62,7 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     message.html = '<html><head></head><body>' + body + '</body></html>'
     message.send()
 
-class BaseHandler(webapp2.RequestHandler):
+class MainWebAppHandler(datamodel.BaseHandler):
     """A wrapper about webapp2.RequestHandler with customized methods"""
     def get_participant(self):
         """Gets a participant from the get string gift_exchange_participant"""
@@ -88,7 +80,7 @@ class BaseHandler(webapp2.RequestHandler):
             pass
         return gift_exchange_participant
     
-class LoginHandler(BaseHandler):
+class LoginHandler(MainWebAppHandler):
     """The class that handles requests for logins"""
     def get(self):
         """Method that handles get requests for the login page"""
@@ -97,14 +89,14 @@ class LoginHandler(BaseHandler):
             self.redirect('/home')
         else:
             template_values = {
-                    'page_title': 'Gift Exchange Login',
+                    'page_title': 'Gift Exchange Central Login',
                     'login_url': users.create_login_url(self.request.uri)
                 }
-            template = _JINJA_ENVIRONMENT.get_template('login.html')
-            self.response.write(template.render(template_values))
+            self.add_template_values(template_values)
+            self.render_template('login.html')
         return
 
-class HomeHandler(BaseHandler):
+class HomeHandler(MainWebAppHandler):
     """The home page of the gift exchange app. This finds any events that a user is in"""
     def get(self):
         """The handler for get requests to the home page"""
@@ -123,17 +115,11 @@ class HomeHandler(BaseHandler):
             participant = participant_list[0]
             self.redirect('/main?gift_exchange_participant=' + participant.key.urlsafe())
         else:
-            template_values = {
-                    'participant_list': participant_list,
-                    'page_title': 'Gift Exchange Homepage',
-                    'is_admin_user': users.is_current_user_admin(),
-                    'logout_url': users.create_logout_url(self.request.uri)
-                }
-            template = _JINJA_ENVIRONMENT.get_template('home.html')
-            self.response.write(template.render(template_values))
+            self.add_template_values({'participant_list': participant_list })
+            self.render_template('home.html')
         return
 
-class MainHandler(BaseHandler):
+class MainHandler(MainWebAppHandler):
     """The main page for a given event. Requires a specific participant"""
     @participant_required
     def get(self):
@@ -164,14 +150,11 @@ class MainHandler(BaseHandler):
                 'target_messages': target_messages,
                 'giver_messages': giver_messages,
                 'money_limit': gift_exchange_participant.get_event().money_limit,
-                'is_admin_user': users.is_current_user_admin(),
-                'logout_url': users.create_logout_url(self.request.uri)
             }
-        template = _JINJA_ENVIRONMENT.get_template('main.html')
-        self.response.write(template.render(template_values))
+        self.add_template_values(template_values)
+        self.render_template('main.html')
   
-
-class UpdateHandler(BaseHandler):
+class UpdateHandler(MainWebAppHandler):
     """Class that handles updates to the participant's ideas"""
     @participant_required
     def post(self):
@@ -200,7 +183,7 @@ class UpdateHandler(BaseHandler):
                     #send_email_helper(giver, email_subject, body, unsubscribe_link)
         self.response.out.write(json.dumps(({'message': message})))
         
-class AssignmentHandler(BaseHandler):
+class AssignmentHandler(MainWebAppHandler):
     """The handler for assigning requests."""
     @participant_required
     def post(self):
@@ -213,7 +196,7 @@ class AssignmentHandler(BaseHandler):
             gift_exchange_participant.put()
         self.response.out.write(json.dumps(({'target': target})))
 
-class PreferencesHandler(BaseHandler):
+class PreferencesHandler(MainWebAppHandler):
     """The handler for updating preferences."""
     def get(self):
         """Handles get requests and serves up the preference page."""
@@ -223,11 +206,9 @@ class PreferencesHandler(BaseHandler):
         template_values = {
                            'page_title': 'User Preferences',
                            'user': user,
-                           'is_admin_user': users.is_current_user_admin(),
-                           'logout_url': users.create_logout_url(self.request.uri)
                         }
-        template = _JINJA_ENVIRONMENT.get_template('preferences.html')
-        self.response.write(template.render(template_values))
+        self.add_template_values(template_values)
+        self.render_template('preferences.html')
     
     def post(self):
         """Handles posts requests for updating preferences. Requires a JSON object."""
@@ -246,7 +227,7 @@ class PreferencesHandler(BaseHandler):
             user.put()
         self.response.out.write(json.dumps(({'message': 'Preferences Updated Successfully'})))
 
-class UnsubscribeHandler(BaseHandler):
+class UnsubscribeHandler(MainWebAppHandler):
     """Handles unsubscribing a user"""
     def get(self):
         """Handles get requests for unsubscribing"""
@@ -260,15 +241,12 @@ class UnsubscribeHandler(BaseHandler):
             if not user.subscribed_to_updates:
                 user.subscribed_to_updates = False
                 user.put()
-            template_values = {
-                           'page_title': 'Successfully Unsubscribed',
-                        }
-            template = _JINJA_ENVIRONMENT.get_template('unsubscribe.html')
-            self.response.write(template.render(template_values))
+            self.add_template_values({'page_title': 'Successfully unsubscribed'})
+            self.render_template('unsubscribe.html')
             return
         self.redirect('/home')
 
-class MessageHandler(BaseHandler):
+class MessageHandler(MainWebAppHandler):
     """Handler for page to send anonymous messages to your target"""
     @participant_required
     def post(self):
