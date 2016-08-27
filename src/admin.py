@@ -30,7 +30,8 @@ _DEFAULT_MAX_RESULTS = 200
 
 def event_required(handler):
     """
-        Decorator that checks if there's a user associated with the current session.
+        Decorator that checks if there's an event associated with the current session.
+        Looks for post parameters or JSON object.
         Will also fail if there's no session present.
     """
     def check_event(self, *args, **kwargs):
@@ -65,7 +66,7 @@ class HomeHandler(AdminWebAppHandler):
         """Handles get requests to the admin home page - listing all available events"""
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
+        datamodel.GiftExchangeMember.update_and_retrieve_member(gift_exchange_key, google_user)
         query = datamodel.GiftExchangeEvent.get_all_events_query(gift_exchange_key)
         event_list = query.fetch(_DEFAULT_MAX_RESULTS) #maybe filter out the  events that have ended
         not_started_events = []
@@ -97,8 +98,8 @@ class EventHandler(AdminWebAppHandler):
         money_limit = ''
         participant_list = []
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        query = datamodel.GiftExchangeUser.get_all_users_query(gift_exchange_key)
-        user_list = query.fetch(_DEFAULT_MAX_RESULTS)
+        query = datamodel.GiftExchangeMember.get_all_members_query(gift_exchange_key)
+        member_list = query.fetch(_DEFAULT_MAX_RESULTS)
         has_started = False
         has_ended = False
         if event is not None:
@@ -116,21 +117,21 @@ class EventHandler(AdminWebAppHandler):
                 'has_ended': has_ended,
                 'money_limit': money_limit,
                 'participant_list': participant_list,
-                'user_list': user_list,
+                'member_list': member_list,
                 'page_title': 'Edit an event',
             }
         self.add_template_values(template_values)
         self.render_template('event.html')
         
     def post(self):
-        """Handles updating a particular event, including the users. Expects a JSON object."""
+        """Handles updating a particular event, including the participants. Expects a JSON object."""
         def _prune_participants(gift_exchange_key, event_key, name_index):
             """Deletes any participants from a given event that aren't in the name_index"""
             query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event_key)
             participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
             for participant in participant_list:
                 if participant.display_name in name_index:
-                    if ((participant.get_user().email != name_index[participant.display_name][0]) 
+                    if ((participant.get_member().email != name_index[participant.display_name][0]) 
                             or (participant.family != name_index[participant.display_name][1])):
                         participant.key.delete()
                 else:
@@ -138,7 +139,7 @@ class EventHandler(AdminWebAppHandler):
             return
         
         def _save_participants(gift_exchange_key, event_key, participant_list):
-            """Helper method for saving the participants in a particular event, including pruning users"""
+            """Helper method for saving the participants in a particular event, including pruning participants"""
             message = None
             #There's likely a better way to check for duplicates, but this shouldn't happen
             name_index = {}
@@ -154,9 +155,9 @@ class EventHandler(AdminWebAppHandler):
                 if participant is None:
                     participant = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, display_name, event_key)
                     needs_saving = True
-                user = datamodel.GiftExchangeUser.get_user_by_email(gift_exchange_key, participant_object['email'])
-                if participant.user_key != user.key:
-                    participant.user_key = user.key
+                member = datamodel.GiftExchangeMember.get_member_by_email(gift_exchange_key, participant_object['email'])
+                if participant.member_key != member.key:
+                    participant.member_key = member.key
                     needs_saving = True
                 family = participant_object['family']
                 if participant.family != family:
@@ -181,6 +182,8 @@ class EventHandler(AdminWebAppHandler):
             if event is None:
                 event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
                 needs_saving = True
+            else:
+                event_key = event.key
             if event.display_name != event_display_name:
                 event.display_name = event_display_name
                 needs_saving = True
@@ -202,7 +205,7 @@ class DeleteHandler(AdminWebAppHandler):
     """Handles requests for deleting an event, including all participants associated with the event"""
     @event_required
     def post(self):
-        """Takes a JSON request and deletes the event and all users associated with it."""
+        """Takes a JSON request and deletes the event and all participants associated with it."""
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         event = self.get_event()
         participant_query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
@@ -250,7 +253,7 @@ class InheritHandler(AdminWebAppHandler):
         for participant in participant_list:
             display_name = participant.display_name
             new_participant = datamodel.GiftExchangeParticipant.create_participant_by_name(gift_exchange_key, display_name, child_event_key)
-            new_participant.user_key = participant.user_key
+            new_participant.member_key = participant.member_key
             new_participant.family = participant.family
             new_participant.previous_target = participant.target
             new_participant.put()
@@ -262,56 +265,56 @@ class StatusChangeHandler(AdminWebAppHandler):
     def post(self):
         """Post handler for starting or stopping an event. Expects a JSON object"""
         
-        def _is_valid_assignment(source_user, target_user):
-            """Returns whether source_user can give to target_user"""
+        def _is_valid_assignment(source_participant, target_participant):
+            """Returns whether source_participant can give to target_participant"""
             #Cannot give to yourself
-            if source_user.display_name == target_user.display_name:
+            if source_participant.display_name == target_participant.display_name:
                 return False
             #Cannot give to the person you gave to last year
-            if source_user.previous_target == target_user.display_name:
+            if source_participant.previous_target == target_participant.display_name:
                 return False
             #If you are in a family, cannot give to someone in your own family
-            if source_user.family:
-                if source_user.family == target_user.family:
+            if source_participant.family:
+                if source_participant.family == target_participant.family:
                     return False
             return True
         
-        def _can_assign(source_user, target_user, need_to_give, need_a_giver):
-            """Returns where the source_user can give to target_user by checking if there is still a valid assignment scheme for other users"""        
-            source_user.target = target_user.display_name
-            source_index = need_to_give.index(source_user)
-            need_to_give.remove(source_user)
-            target_index = need_a_giver.index(target_user)
-            need_a_giver.remove(target_user)
+        def _can_assign(source_participant, target_participant, need_to_give, need_a_giver):
+            """Returns where the source_participant can give to target_participant by checking if there is still a valid assignment scheme for other participants"""        
+            source_participant.target = target_participant.display_name
+            source_index = need_to_give.index(source_participant)
+            need_to_give.remove(source_participant)
+            target_index = need_a_giver.index(target_participant)
+            need_a_giver.remove(target_participant)
     
             if len(need_to_give) == 0:
                 return True
             for giver in need_to_give:
-                found_possible_user = False
+                found_possible_participant = False
                 for givee in need_a_giver:
                     if _is_valid_assignment(giver, givee):
-                        found_possible_user = True
+                        found_possible_participant = True
                         break
-                if not found_possible_user:
-                    source_user.target = None
-                    need_to_give.insert(source_index, source_user)
-                    need_a_giver.insert(target_index, target_user)
+                if not found_possible_participant:
+                    source_participant.target = None
+                    need_to_give.insert(source_index, source_participant)
+                    need_a_giver.insert(target_index, target_participant)
                     return False
                 for givee in need_a_giver:
                     if _is_valid_assignment(giver, givee):
                         if _can_assign(giver, givee, need_to_give, need_a_giver):
                             return True
                         else:
-                            source_user.target = None
-                            need_to_give.insert(source_index, source_user)
-                            need_a_giver.insert(target_index, target_user)
-            source_user.target = None
-            need_to_give.insert(source_index, source_user)
-            need_a_giver.insert(target_index, target_user)
+                            source_participant.target = None
+                            need_to_give.insert(source_index, source_participant)
+                            need_a_giver.insert(target_index, target_participant)
+            source_participant.target = None
+            need_to_give.insert(source_index, source_participant)
+            need_a_giver.insert(target_index, target_participant)
             return False
         
-        def _assign_users(gift_exchange_key, event_key):
-            """Helper method for assigning targets to all users in a given event."""
+        def _assign_participants(gift_exchange_key, event_key):
+            """Helper method for assigning targets to all participants in a given event."""
             query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event_key)
             participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
             if len(participant_list) == 0:
@@ -321,10 +324,10 @@ class StatusChangeHandler(AdminWebAppHandler):
             #randomize list and then brute force for acceptable assignment
             random.shuffle(need_to_give)
             random.shuffle(need_a_giver)
-            source_user = need_to_give[0]
-            for target_user in need_a_giver:
-                if _is_valid_assignment(source_user, target_user):
-                    if _can_assign(source_user, target_user, need_to_give, need_a_giver):
+            source_participant = need_to_give[0]
+            for target_participant in need_a_giver:
+                if _is_valid_assignment(source_participant, target_participant):
+                    if _can_assign(source_participant, target_participant, need_to_give, need_a_giver):
                         break
             #Save all participants
             for participant in participant_list:
@@ -335,7 +338,7 @@ class StatusChangeHandler(AdminWebAppHandler):
         status_change_type = data['status_change_type']
         event = self.get_event()
         if status_change_type == 'start':
-            _assign_users(datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event.key)
+            _assign_participants(datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event.key)
             event.has_started = True
             event.put()
         if status_change_type == 'stop':

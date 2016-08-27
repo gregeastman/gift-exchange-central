@@ -5,7 +5,7 @@
 {% block content %}
 	<h3>Account Preferences</h3>
 	<div>
-		<input type="checkbox" id="chk_is_subscribed" {% if user.subscribed_to_updates %} checked{% endif %}>Receive an email when wish list is updated.</input>
+		<input type="checkbox" id="chk_is_subscribed" {% if member.subscribed_to_updates %} checked{% endif %}>Receive an email when wish list is updated.</input>
 	</div>
 	<input type="button" onclick="javascript:update_preferences()" value="Update" />
 	<div>

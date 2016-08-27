@@ -24,12 +24,12 @@
 			<td class="key">{{ participant.key.urlsafe() }}</td>
 			<td class="display_name">{{ participant.display_name }}</td>
 			<td class="family">{{ participant.family }}</td>
-			<td class="email">{{ participant.get_user().email }}</td>
+			<td class="email">{{ participant.get_member().email }}</td>
 			<td class="target">{{ participant.target }}</td>
 			<td class="is_target_known">{% if participant.is_target_known %}Yes{% else %}No{% endif %}</td>
 			<td class="previous_target">{{ participant.previous_target }}</td>
 			<td class="ideas">{% for idea in participant.idea_list %}{{ idea }}<br /> {% endfor %}</td>
-			<td class="subscribed_to_updates">{% if participant.get_user().subscribed_to_updates %}Yes{% else %}No{% endif %}</td>
+			<td class="subscribed_to_updates">{% if participant.get_member().subscribed_to_updates %}Yes{% else %}No{% endif %}</td>
 		</tr>
 	{% endfor %}
 	</tbody>

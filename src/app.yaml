@@ -10,22 +10,15 @@ handlers:
   upload: favicon\.ico
 
 - url: /media
-  static_dir: media 
-
-- url: /
-  login: optional
-  script: main.app
- 
-- url: /login
-  login: optional
-  script: main.app
+  static_dir: media
   
 - url: /admin/.*
+  secure: always
   login: admin
   script: admin.app
 
 - url: .*
-  login: required
+  secure: always
   script: main.app
 
 

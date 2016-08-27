@@ -1,6 +1,27 @@
 {% extends "base.html" %}
 {% block toolbar %}{% endblock %}
 {% block content %}
-<h2>Authentication is now via google, so please use your Google authentication</h2>
-<h1><a href="{{ login_url }}">Login!</a></h1>
+
+<h1>Login</h1>
+<h2>You can simply link your account to your google account and stay logged in via google. <a href="{{ google_url }}">Proceed with google</a></h2>
+<h2>If you don't have an account, <a href="/signup">signup</a></h2>
+
+
+{% if failed %}
+
+    <strong>Login failed!</strong> Check your credentials and try again.
+
+{% endif %}
+
+<form class="form" action= "/login" method="POST">
+	<label for="username">Username</label>
+	<input type="text" value="{{ username }}" name="username"/><br />
+	<label for="password">Password</label>
+	<input type="password" name="password"/><br />
+	<button type="submit" class="btn">Login</button>
+</form>
+
+<a href="/forgot">Forgot password</a>
+
+
 {% endblock %}

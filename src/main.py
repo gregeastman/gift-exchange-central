@@ -20,24 +20,44 @@ from google.appengine.ext import ndb
 from google.appengine.api import mail
 
 import datamodel
+import constants
 
 import webapp2
 import json
+import logging
+
+from webapp2_extras import auth
+from webapp2_extras import sessions
+
+from webapp2_extras.auth import InvalidAuthIdError
+from webapp2_extras.auth import InvalidPasswordError
 
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_MAX_RESULTS = 200
 
+def member_required(handler):
+    """
+        Decorator that checks if there's a member associated with the current session.
+        Will also fail if there's no session present.
+    """
+    def check_login(self, *args, **kwargs):
+        if not self.get_gift_exchange_member():
+            self.redirect(self.uri_for('login'), abort=True)
+        else:
+            return handler(self, *args, **kwargs)
+    return check_login
+
 def participant_required(handler):
     """
-        Decorator that checks if there's a user associated with the current session.
-        Will also fail if there's no session present.
+        Decorator that checks if there's a participant associated with the current page
+        Will look to post and JSON for the participant.
     """
     def check_participant(self, *args, **kwargs):
         gift_exchange_participant = self.get_participant()
         if gift_exchange_participant is None:
-            self.redirect('/home', abort=True)
-        elif gift_exchange_participant.is_valid_for_google_id(users.get_current_user().user_id()) == False:
-            self.redirect('/home', abort=True)
+            self.redirect(self.uri_for('home'), abort=True)
+        elif gift_exchange_participant.is_valid_for_member(self.get_gift_exchange_member()) == False:
+            self.redirect(self.uri_for('home'), abort=True)
         else:    
             return handler(self, *args, **kwargs)      
     return check_participant
@@ -57,13 +77,70 @@ def send_email_helper(participant, subject, content, unsubscribe_link):
     message = mail.EmailMessage(
                     sender='anonymous@gift-exchange-central.appspotmail.com',
                     subject=subject)
-    message.to = participant.get_user().email
+    message.to = participant.get_member().email
     message.body = plain_text
     message.html = '<html><head></head><body>' + body + '</body></html>'
     message.send()
 
 class MainWebAppHandler(datamodel.BaseHandler):
     """A wrapper about webapp2.RequestHandler with customized methods"""
+    
+    @webapp2.cached_property
+    def auth(self):
+        """Shortcut to access the auth instance as a property."""
+        return auth.get_auth()
+    
+    @webapp2.cached_property
+    def user_info(self):
+        """Shortcut to access a subset of the user attributes that are stored
+        in the session.
+
+        The list of attributes to store in the session is specified in
+          config['webapp2_extras.auth']['user_attributes'].
+        :returns
+          A dictionary with most user information
+        """
+        return self.auth.get_user_by_session()
+
+    @webapp2.cached_property
+    def user(self):
+        """Shortcut to access the current logged in user.
+
+        Unlike user_info, it fetches information from the persistence layer and
+        returns an instance of the underlying model.
+
+        :returns
+          The instance of the user model associated to the logged in user.
+        """
+        u = self.user_info
+        return self.user_model.get_by_id(u['user_id']) if u else None
+
+    @webapp2.cached_property
+    def user_model(self):
+        """Returns the implementation of the user model.
+
+        It is consistent with config['webapp2_extras.auth']['user_model'], if set.
+        """    
+        return self.auth.store.user_model
+
+    @webapp2.cached_property
+    def session(self):
+        """Shortcut to access the current session."""
+        return self.session_store.get_session(backend="datastore")
+    
+    # this is needed for webapp2 sessions to work
+    def dispatch(self):
+        # Get a session store for this request.
+        self.session_store = sessions.get_store(request=self.request)
+
+        try:
+            # Dispatch the request.
+            webapp2.RequestHandler.dispatch(self)
+        finally:
+            # Save all sessions.
+            self.session_store.save_sessions(self.response)
+    
+    
     def get_participant(self):
         """Gets a participant from the get string gift_exchange_participant"""
         gift_exchange_participant = None
@@ -80,32 +157,179 @@ class MainWebAppHandler(datamodel.BaseHandler):
             pass
         return gift_exchange_participant
     
+    def get_gift_exchange_member(self):
+        """Gets the member object associated with a particular session"""
+        gift_exchange_member = None
+        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        #first see if the user is in the DB
+        auth = self.auth
+        session_user = auth.get_user_by_session()
+        if session_user:
+            try:
+                user_object = datamodel.User.get_by_id(session_user['user_id'])
+                gift_exchange_member = datamodel.GiftExchangeMember.get_member_by_email(gift_exchange_key, user_object.email_address)
+                #TODO: consider to ignore users that are google users with this email
+            except:
+                pass
+        if gift_exchange_member is None:
+            try:
+                google_user = users.get_current_user()      
+                gift_exchange_member = datamodel.GiftExchangeMember.update_and_retrieve_member(gift_exchange_key, google_user)
+            except:
+                pass
+        return gift_exchange_member
+                           
 class LoginHandler(MainWebAppHandler):
-    """The class that handles requests for logins"""
+    """Class for handling logins"""
     def get(self):
-        """Method that handles get requests for the login page"""
-        user = users.get_current_user()
-        if user:
-            self.redirect('/home')
+        """Handles the get requests for logins"""
+        gift_exchange_member = self.get_gift_exchange_member()
+        if gift_exchange_member:
+            self.redirect(self.uri_for('home'))
         else:
-            template_values = {
-                    'page_title': 'Gift Exchange Central Login',
-                    'login_url': users.create_login_url(self.request.uri)
-                }
-            self.add_template_values(template_values)
-            self.render_template('login.html')
+            self._serve_page()
         return
 
+    def post(self):
+        """Process the login request as a forms post"""
+        username = self.request.get('username')
+        password = self.request.get('password')
+        try:
+            self.auth.get_user_by_password(username, password, remember=True,
+                                               save_session=True)
+            self.redirect(self.uri_for('home'))
+            return
+        except (InvalidAuthIdError, InvalidPasswordError) as e:
+            logging.info('Login failed for user %s because of %s', username, type(e))
+        self._serve_page(True)
+
+    def _serve_page(self, failed=False):
+        username = self.request.get('username')
+        template_values = {
+                  'username': username,
+                  'failed': failed,
+                  'google_url': users.create_login_url(self.request.uri)
+                  }
+        self.add_template_values(template_values)
+        self.render_template('login.html')
+
+class LogoutHandler(MainWebAppHandler):
+    """Handles get requests for logging out"""
+    def get(self):
+        #users.create_logout_url(self.request.uri)
+        gift_exchange_member = self.get_gift_exchange_member()
+        if gift_exchange_member:
+            if gift_exchange_member.member_type == datamodel.member_type_google_user:
+                self.redirect(users.create_logout_url(self.request.uri))
+                return
+        self.auth.unset_session()
+        self.redirect(self.uri_for('login'))
+
+class SignupHandler(MainWebAppHandler):
+    """Class for processing new user signup"""
+    def get(self):
+        """Handles get requests for signing up"""
+        self.add_template_values({'google_url': users.create_login_url(self.request.uri)})
+        self.render_template('signup.html')
+
+    def post(self):
+        """Handles creating new users"""
+        user_name = self.request.get('username')
+        email = self.request.get('email')
+        name = self.request.get('name')
+        password = self.request.get('password')
+        last_name = self.request.get('lastname')
+    
+        unique_properties = ['email_address']
+        user_data = self.user_model.create_user(user_name,
+          unique_properties,
+          email_address=email, name=name, password_raw=password,
+          last_name=last_name, verified=False)
+        if not user_data[0]: #user_data is a tuple
+            self.add_template_values({'message': 'Unable to create user for email %s because of \
+                duplicate keys %s' % (user_name, user_data[1])})
+            self.render_template('message.html')
+            return
+        
+        user = user_data[1]
+        user_id = user.get_id()
+        
+        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_member = datamodel.GiftExchangeMember(parent=gift_exchange_key, user_key=user.key, email=email, member_type=datamodel.member_type_native_user)
+        gift_exchange_member.put()
+        
+    
+        token = self.user_model.create_signup_token(user_id)
+    
+        verification_url = self.uri_for('verification', type='v', user_id=user_id,
+          signup_token=token, _full=True)
+    
+        msg = 'Send an email to user in order to verify their address. \
+              They will be able to do so by visiting <a href="{url}">{url}</a>'
+        self.add_template_values({'message': msg.format(url=verification_url)})
+        self.render_template('message.html')
+
+class VerificationHandler(MainWebAppHandler):
+    """Verification handler used for verifiying emails and handling forgotten passwords"""
+    def get(self, *args, **kwargs):
+        """Handles get requests for verifying emails and forgotten passwords"""
+        user = None
+        user_id = kwargs['user_id']
+        signup_token = kwargs['signup_token']
+        verification_type = kwargs['type']
+    
+        # it should be something more concise like
+        # self.auth.get_user_by_token(user_id, signup_token)
+        # unfortunately the auth interface does not (yet) allow to manipulate
+        # signup tokens concisely 
+        my_tuple = self.user_model.get_by_auth_token(int(user_id), signup_token,
+          'signup')
+        
+        if my_tuple:
+            user = my_tuple[0]
+        if not user:
+            logging.info('Could not find any user with id "%s" signup token "%s"',
+                         user_id, signup_token)
+            self.abort(404)
+        
+        # store user data in the session
+        self.auth.set_session(self.auth.store.user_to_dict(user), remember=True)
+    
+        if verification_type == 'v':
+            # remove signup token, we don't want users to come back with an old link
+            self.user_model.delete_signup_token(user.get_id(), signup_token)
+    
+            if not user.verified:
+                user.verified = True
+                user.put()
+            
+            self.add_template_values({'message': 'User email address has been verified.'})
+            self.render_template('message.html')
+            return
+        elif verification_type == 'p':
+            # supply user to the page
+            template_values = {
+                          'user': user,
+                          'token': signup_token
+                          }
+            self.add_template_values(template_values)
+            self.render_template('resetpassword.html')
+        else:
+            logging.info('verification type not supported')
+            self.abort(404)
+
+#TODO: implement forgot password handler and set password handler
+
 class HomeHandler(MainWebAppHandler):
-    """The home page of the gift exchange app. This finds any events that a user is in"""
+    """The home page of the gift exchange app. This finds any events that a member is in"""
+    @member_required
     def get(self):
         """The handler for get requests to the home page"""
-        google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
+        member = self.get_gift_exchange_member()
         all_participants = []
-        if user is not None:
-            query = datamodel.GiftExchangeParticipant.get_participants_by_user_query(gift_exchange_key, user.key)
+        if member is not None:
+            query = datamodel.GiftExchangeParticipant.get_participants_by_member_query(gift_exchange_key, member.key)
             all_participants = query.fetch(_DEFAULT_MAX_RESULTS)
         participant_list = []
         for participant in all_participants:
@@ -121,6 +345,7 @@ class HomeHandler(MainWebAppHandler):
 
 class MainHandler(MainWebAppHandler):
     """The main page for a given event. Requires a specific participant"""
+    @member_required
     @participant_required
     def get(self):
         """Handles get requests for the main page of a given event."""
@@ -156,6 +381,7 @@ class MainHandler(MainWebAppHandler):
   
 class UpdateHandler(MainWebAppHandler):
     """Class that handles updates to the participant's ideas"""
+    @member_required
     @participant_required
     def post(self):
         """This handles post requests. Requires a JSON object"""
@@ -169,8 +395,8 @@ class UpdateHandler(MainWebAppHandler):
             message = 'Ideas successfully updated'
             giver = gift_exchange_participant.get_giver()
             if giver is not None:
-                user = giver.get_user()
-                if user.email and user.subscribed_to_updates:
+                member = giver.get_member()
+                if member.email and member.subscribed_to_updates:
                     body = gift_exchange_participant.display_name + ' has updated their profile with new ideas for '
                     body = body + gift_exchange_participant.get_event().display_name
                     body = body + '\n\n'
@@ -180,14 +406,16 @@ class UpdateHandler(MainWebAppHandler):
                     #email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update'
                     #url_length = len(self.request.url) - len(self.request.query_string) - len('update?') + 1
                     #unsubscribe_link = self.request.url[0:url_length] + 'unsubscribe?gift_exchange_participant=' + giver.key.urlsafe()
+                    #unsubscribe_link = self.uri_for('unsubscribe') + '?gift_exchange_member=' + member.key.urlsafe()
                     #send_email_helper(giver, email_subject, body, unsubscribe_link)
         self.response.out.write(json.dumps(({'message': message})))
         
 class AssignmentHandler(MainWebAppHandler):
     """The handler for assigning requests."""
+    @member_required
     @participant_required
     def post(self):
-        """This handles the post request for assigning users. Requires a JSON object"""
+        """This handles the post request for assigning participants. Requires a JSON object"""
         target = ''
         gift_exchange_participant = self.get_participant()
         if gift_exchange_participant is not None:
@@ -198,18 +426,18 @@ class AssignmentHandler(MainWebAppHandler):
 
 class PreferencesHandler(MainWebAppHandler):
     """The handler for updating preferences."""
+    @member_required
     def get(self):
         """Handles get requests and serves up the preference page."""
-        google_user = users.get_current_user()
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        user = datamodel.GiftExchangeUser.get_user_by_google_id(gift_exchange_key, google_user.user_id())
+        member = self.get_gift_exchange_member()
         template_values = {
                            'page_title': 'User Preferences',
-                           'user': user,
+                           'member': member,
                         }
         self.add_template_values(template_values)
         self.render_template('preferences.html')
     
+    @member_required
     def post(self):
         """Handles posts requests for updating preferences. Requires a JSON object."""
         data = json.loads(self.request.body)
@@ -217,34 +445,34 @@ class PreferencesHandler(MainWebAppHandler):
         subscribed_to_updates = True
         if subscribed_string == 'no':
             subscribed_to_updates = False
-        google_user = users.get_current_user()
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        user = datamodel.GiftExchangeUser.get_user_by_google_id(gift_exchange_key, google_user.user_id())
-        if user is None:
-            user = datamodel.GiftExchangeUser.update_and_retrieve_user(gift_exchange_key, google_user)
-        if user.subscribed_to_updates != subscribed_to_updates:
-            user.subscribed_to_updates = subscribed_to_updates
-            user.put()
+        member = self.get_gift_exchange_member()
+        if member.subscribed_to_updates != subscribed_to_updates:
+            member.subscribed_to_updates = subscribed_to_updates
+            member.put()
         self.response.out.write(json.dumps(({'message': 'Preferences Updated Successfully'})))
 
 class UnsubscribeHandler(MainWebAppHandler):
-    """Handles unsubscribing a user"""
+    """Handles unsubscribing a member"""
     def get(self):
         """Handles get requests for unsubscribing"""
         #Don't require a user to be logged in to unsubcribe.
         #This means that anybody can be unsubscribed with merely a link, but that is better
         #  than being aggressive about disallowing unsubscribes, and the GUID shouldn't
         #  be easy to reproduce
-        gift_exchange_participant = self.get_participant()
-        if gift_exchange_participant is not None:
-            user = gift_exchange_participant.get_user()
-            if not user.subscribed_to_updates:
-                user.subscribed_to_updates = False
-                user.put()
+        member = None
+        try:
+            member_key = ndb.Key(urlsafe=self.request.get('gift_exchange_member'))
+            member = member_key.get()
+        except:
+            pass
+        if member:
+            if not member.subscribed_to_updates:
+                member.subscribed_to_updates = False
+                member.put()
             self.add_template_values({'page_title': 'Successfully unsubscribed'})
             self.render_template('unsubscribe.html')
             return
-        self.redirect('/home')
+        self.redirect(self.uri_for('home'))
 
 class MessageHandler(MainWebAppHandler):
     """Handler for page to send anonymous messages to your target"""
@@ -266,7 +494,7 @@ class MessageHandler(MainWebAppHandler):
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
-                if target_participant.get_user().email:
+                if target_participant.get_member().email:
                     message = 'Message successfully sent'
                     send_email_helper(target_participant, 'Your Secret Santa Has Sent You A Message', email_body, None)
                 message_type_enum = datamodel.message_type_to_target
@@ -275,20 +503,38 @@ class MessageHandler(MainWebAppHandler):
                 giver = gift_exchange_participant.get_giver()
                 message = 'Message successfully sent'
                 if giver is not None:
-                    if giver.get_user().email:
+                    if giver.get_member().email:
                         send_email_helper(giver, gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
                 message_type_enum = datamodel.message_type_to_giver
                 datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, message_type_enum, email_body)
         self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
 
+
+config = {
+  'webapp2_extras.auth': {
+    'user_model': 'datamodel.User',
+    'user_attributes': ['name']
+  },
+  'webapp2_extras.sessions': {
+    'secret_key': constants.SECRET_KEY
+  }
+}
+
+#TODO: consider updating more parameters to be specified via routes
 app = webapp2.WSGIApplication([
-    ('/', LoginHandler),
-    ('/login', LoginHandler),
-    ('/main', MainHandler),
-    ('/home', HomeHandler),
-    ('/preferences', PreferencesHandler),
-    ('/message', MessageHandler),
-    ('/update', UpdateHandler),
-    ('/unsubscribe', UnsubscribeHandler),
-    ('/assign', AssignmentHandler)
-], debug=False)
+    webapp2.Route('/', LoginHandler),
+    webapp2.Route('/login', LoginHandler, name='login'),
+    webapp2.Route('/logout', LogoutHandler, name='logout'),
+    webapp2.Route('/signup', SignupHandler),
+    webapp2.Route('/<type:v|p>/<user_id:\d+>-<signup_token:.+>',
+      handler=VerificationHandler, name='verification'),
+    webapp2.Route('/main', MainHandler, name='main'),
+    webapp2.Route('/home', HomeHandler, name='home'),
+    webapp2.Route('/preferences', PreferencesHandler),
+    webapp2.Route('/message', MessageHandler),
+    webapp2.Route('/update', UpdateHandler),
+    webapp2.Route('/unsubscribe', UnsubscribeHandler, name="unsubscribe"),
+    webapp2.Route('/assign', AssignmentHandler)
+], debug=True, config=config)
+
+logging.getLogger().setLevel(logging.DEBUG)

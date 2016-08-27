@@ -2,7 +2,7 @@
 {% block content %}
 	<h1>Welcome to the Gift Exchange Central</h1>
 	{% if participant_list|length > 0 %}
-		<h2>Choose a user/event combination:</h2>
+		<h2>Choose an exchange instance:</h2>
 		<table class="big_table" id="tbl_events" style="border='0px'">	
 			<tbody>
 			{% for participant in participant_list %}
