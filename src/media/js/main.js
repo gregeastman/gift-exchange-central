@@ -101,11 +101,11 @@ function update_ideas()
 	
 	$.ajax({
         type: "POST",
-        url: "/update",
+        url: "/update/" + $("#txt_gift_exchange_participant").val(),
         dataType: "json",
         data: JSON.stringify(
       	{ 
-      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
+      	  //"gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
       	  "idea_list": idea_list
         })
       })
@@ -118,11 +118,11 @@ function get_assignment()
 {
 	$.ajax({
         type: "POST",
-        url: "/assign",
+        url: "/assign/" + $("#txt_gift_exchange_participant").val(),
         dataType: "json",
         data: JSON.stringify(
       	{ 
-      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val()
+      	  //"gift_exchange_participant": $("#txt_gift_exchange_participant").val()
         })
       })
       .done(function( data ) {
@@ -140,6 +140,7 @@ function send_to_target()
 function send_target_message()
 {
 	send_message($("#txt_target_email_body").val(), "target");
+	//TODO: consider updating table of messages
 	close_target_message();
 }
 
@@ -162,6 +163,7 @@ function send_to_giver()
 function send_giver_message()
 {
 	send_message($("#txt_giver_email_body").val(), "giver");
+	//TODO: consider updating table of messages
 	close_giver_message();
 }
 
@@ -180,11 +182,11 @@ function send_message(message_body, type)
 {
 	$.ajax({
         type: "POST",
-        url: "/message",
+        url: "/message/" + $("#txt_gift_exchange_participant").val(),
         dataType: "json",
         data: JSON.stringify(
       	{ 
-      	  "gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
+      	  //"gift_exchange_participant": $("#txt_gift_exchange_participant").val(),
       	  "email_body": message_body,
       	  "message_type": type
         })

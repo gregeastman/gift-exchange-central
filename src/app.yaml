@@ -12,6 +12,16 @@ handlers:
 - url: /media
   static_dir: media
   
+- url: /googlelogin
+  secure: always
+  login: required
+  script: main.app
+  
+- url: /googlesignup
+  secure: always
+  login: required
+  script: main.app
+  
 - url: /admin/.*
   secure: always
   login: admin

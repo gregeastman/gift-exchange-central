@@ -17,10 +17,12 @@
 <body>
 	{% block toolbar %}
     <div id="div_toolbar">
-        <a href="/home">Home</a>
+        <a href="/home">{% if logged_in_member %} {{ logged_in_member.first_name }} - {% endif %}Home</a>
+        {% if logged_in_member %}
         {% if is_admin_user %}<a href="/admin/">Admin</a>{% endif %}
         <a href="/preferences">Account Preferences</a>
         <a href="{{ logout_url }}">Sign Out</a>
+        {% endif %}
     </div>
     {% endblock %}
     <div id="div_content">

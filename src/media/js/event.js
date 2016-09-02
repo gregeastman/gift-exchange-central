@@ -104,11 +104,11 @@ function save_to_database()
 	$("#span_status_message").text("Saving...");
 	$.ajax({
           type: "POST",
-          url: "/admin/event",
+          url: "/admin/event/" + $("#txt_event").val(),
           dataType: "json",
           data: JSON.stringify(
         	{ 
-        	  "event": $("#txt_event").val(),
+        	  //"event": $("#txt_event").val(),
         	  "event_display_name": $("#txt_event_display_name").val(),
         	  "money_limit": $("#txt_money_limit").val(),
         	  "participant_list": participant_list
@@ -130,16 +130,16 @@ function start_event()
 {
 	$.ajax({
         type: "POST",
-        url: "/admin/statuschange",
+        url: "/admin/statuschange/" + $("#txt_event").val(),
         dataType: "json",
         data: JSON.stringify(
       	{ 
-      	  "event": $("#txt_event").val(),
+      	  //"event": $("#txt_event").val(),
       	  "status_change_type": "start"
         })
       })
       .done(function( data ) {
-  		window.location.replace("/admin/event?event=" + data["event_string"]);
+  		window.location.replace("/admin/event/" + data["event_string"]);
   		/* 
   		 * TODO: Update this to manipulate the DOM.
   		 * 			Disable table for editing
@@ -153,11 +153,11 @@ function end_event()
 {
 	$.ajax({
         type: "POST",
-        url: "/admin/statuschange",
+        url: "/admin/statuschange/" + $("#txt_event").val(),
         dataType: "json",
         data: JSON.stringify(
       	{ 
-      	  "event": $("#txt_event").val(),
+      	  //"event": $("#txt_event").val(),
       	  "status_change_type": "stop"
         })
       })

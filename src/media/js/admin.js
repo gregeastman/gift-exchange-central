@@ -4,11 +4,11 @@ function confirm_deletion(event_key)
 	{
 		$.ajax({
 	          type: "POST",
-	          url: "/admin/delete",
+	          url: "/admin/delete/" + event_key,
 	          dataType: "json",
 	          data: JSON.stringify(
 	        	{ 
-	        	  "event": event_key
+	        	  //"event": event_key
 	          })
 	        })
 	        .done(function( data ) {

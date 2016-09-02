@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block toolbar %}{% endblock %}
 {% block content %}
 
-<h1>Recover password</h1>
+<h1>Recover Your Password</h1>
 
-<p>Forgot your password? Click the link below to receive a link to recover your password.</p>
+<div id="div_error">
+	<span id="span_error_message" class="error">Sample error message</span>
+</div> 
 
-{% if not_found %}
-    <strong>Not found!</strong> We could not found any user with the given username.
-{% endif %} 
-
-<form class="form" action= "/forgot" method="POST">
-	<input type="text" value="{{ username }}" name="username"/>
-	<input type="submit" value="Send password reset link"/>
-</form>
+<p>Forgot your password? Enter your username and we'll send a link to reset your password.</p>
+<label for="txt_username">Username:</label>
+<input type="text" id="txt_username"/>
+<input class="btn_big" type="button" id="btn_reset" onclick="javascript:reset_password()" value="Reset Password" />
+<div>
+	<span id="span_status_message"></span>
+</div>
 
 {% endblock %}

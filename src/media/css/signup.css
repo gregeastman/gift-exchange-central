@@ -1,0 +1,39 @@
+#tbl_account_type
+{
+	width: 85%;
+}
+
+#tbl_account_type thead
+{
+	font-size: 125%;
+}
+
+#tbl_account_type thead th
+{
+	text-align: left;
+}
+
+#tbl_account_type 
+{
+	border:none;
+	border-top: 2px solid;
+	border-bottom: 2px solid;
+	border-collapse: collapse;
+}
+
+#tbl_account_type th 
+{
+	border-left: 2px solid;
+	border-right: 2px solid;
+}
+
+#tbl_account_type td 
+{
+	border-left: 2px solid;
+	border-right: 2px solid;
+}
+
+#tbl_native td
+{
+	border: none;
+}

@@ -20,7 +20,7 @@
 		<input type="button" id="btn_start_event" onclick="javascript:start_event()" {% if not event_string or has_started or has_ended %}style="display:none;" {% endif %}value="Start Event" />
 		<input type="button" id="btn_end_event" onclick="javascript:end_event()" {% if not event_string or not has_started or has_ended %}style="display:none;" {% endif %}value="End Event" />
 		{% if has_started %}
-		<h4><a href="/admin/inherit?event={{ event_string }}">Create Follow Up Event</a></h4>
+		<h4><a href="/admin/inherit/{{ event_string }}">Create Follow Up Event</a></h4>
 		{% endif %}
 	</div>
 	<hr />

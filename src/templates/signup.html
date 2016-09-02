@@ -1,21 +1,54 @@
 {% extends "base.html" %}
-{% block toolbar %}{% endblock %}
+{% block additional_css %}
+<link type="text/css" rel="stylesheet" href="/media/css/signup.css" rel="stylesheet">
+{% endblock %}
+{% block additional_scripts %}
+<script type="text/javascript" src="/media/js/signup.js"></script>
+{% endblock %}
 {% block content %}
 
-	<h1>Register a new user</h1>
-	<h2>Instead of registering you can link your google account. <a href="{{ google_url }}">Proceed with google</a></h2>
+<h1>Register a new user</h1>
+
+<div id="div_error">
+	<span id="span_error_message" class="error">Sample error message</span>
+</div>
 	
-	<form action="/signup" method="POST">
-		<label for="username">Username</label>
-		<input type="text" name="username" /><br />
-		<label for="password">Password</label>
-		<input type="password" name="password" /><br />
-		<label for="email">Email address</label>
-		<input type="text" name="email" /><br />
-		<label for="name">Name</label>
-		<input type="text" name="name" /><br />
-		<label for="lastname">Last Name</label>
-		<input type="text" name="lastname" /><br />
-		<input type="submit" value="Create user" />
-	</form>
+<table>
+	<tbody>
+		<tr><td><label for="txt_name">First Name</label></td><td><input type="text" id="txt_name" /></td></tr>
+		<tr><td><label for="txt_lastname">Last Name</label></td><td><input type="text" id="txt_lastname" /></td></tr>
+	</tbody>
+</table>
+<br />
+<table id="tbl_account_type">
+	<thead>
+		<tr><th><label><input type="radio" id="opt_google" name="opt_type" {% if not default_native %}checked {% endif %}{% if not google_user %}disabled {% endif %}>Link to Google Account</label></th><th><label><input type="radio" id="opt_native" name="opt_type" {% if default_native %}checked {% endif %}>Create login for Gift Exchange Central</label></th></tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td>
+				{% if google_user %}
+				Link to {{ google_user.email() }}
+				{% else %}
+				<a href="/googlesignup">Login to link to a Google account</a>
+				{% endif %}
+			</td>
+			<td>
+				<table id="tbl_native">
+					<tbody>
+						<tr><td><label for="txt_username">Username</label></td><td><input type="text" class="native_field" id="txt_username" /></td></tr>
+						<tr><td><label for="txt_password">Password</label></td><td><input type="password" class="native_field" id="txt_password" /></td></tr>
+						<tr><td><label for="txt_email">Email address</label></td><td><input type="text" class="native_field" id="txt_email" /></td></tr>
+					</tbody>
+				</table>
+			</td>
+		</tr>
+	
+	</tbody>
+</table>
+<br />
+<input class="btn_big" type="button" id="btn_create" onclick="javascript:create_user()" value="Create User" />
+<div>
+	<span id="span_status_message"></span>
+</div>
 {% endblock %}

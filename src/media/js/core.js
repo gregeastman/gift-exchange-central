@@ -3,6 +3,18 @@ function trim(str)
    return str.replace(/^\s+|\s+$/g,'');
 }
 
+function disable_input_controls(selector)
+{
+	$(selector).prop('disabled', true);
+	$(selector).css({'background-color' : '#DFD8D1'});
+}
+
+function enable_input_controls(selector)
+{
+	$(selector).prop('disabled', false);
+	$(selector).css({'background-color' : '#FFFFEEE'});
+}
+
 function set_temporary_message(span_selector, text)
 {
 	$(span_selector).text(text);

@@ -23,6 +23,17 @@ a:hover { color: #000066; }
 	color: #0066CC;
 }
 
+#div_error
+{
+	display: none;
+	margin-bottom: 20px;		
+}
+
+.error
+{
+	color: #990000;
+}
+
 div#div_toolbar 
 {
 	text-align: right; 
@@ -55,6 +66,15 @@ table.big_table
 { 
 	color: #000066;
 	background-color: #D9D9D9;
+}
+
+.btn_big
+{
+	font-size: 140%;
+	padding:5px; 
+	padding-left:25px; 
+	padding-right:25px;
+	text-align: center;	
 }
 
 #span_status_message
@@ -99,8 +119,8 @@ div#div_modal_content
 	z-index: 1000;
 }
 
-input[type=submit], input[type=button], .submit-row input { background:white;  bottom repeat-x; padding:3px; color:black; border:1px solid #bbb; border-color:#ddd #aaa #aaa #ddd; }
+input[type=submit], input[type=button], input { background:white;  bottom repeat-x; padding:3px; color:black; border:1px solid #bbb; border-color:#ddd #aaa #aaa #ddd; }
 input[type=submit]:active, input[type=button]:active {  background-position:top; }
-input[type=submit].default, .submit-row input.default { border:2px solid #5b80b2; background:#7CA0C7;  bottom repeat-x; font-weight:bold; color:white; }
+input[type=submit].default, input.default { border:2px solid #5b80b2; background:#7CA0C7;  bottom repeat-x; font-weight:bold; color:white; }
 input[type=submit].default:active { background-position:top; }
 

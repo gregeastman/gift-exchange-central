@@ -19,6 +19,7 @@ from google.appengine.api import users
 from google.appengine.ext import ndb
 
 import datamodel
+import constants
 
 import webapp2
 import json
@@ -35,25 +36,20 @@ def event_required(handler):
         Will also fail if there's no session present.
     """
     def check_event(self, *args, **kwargs):
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         if event is None:
-            self.redirect('/admin/', abort=True)
+            self.redirect(self.uri_for('home'), abort=True)
         else:    
             return handler(self, *args, **kwargs)      
     return check_event
 
 class AdminWebAppHandler(datamodel.BaseHandler):
     """A wrapper around webapp2.RequestHandler with a few convenience methods"""
-    def get_event(self):
+    def get_event(self, *args, **kwargs):
         """Gets an event from the get string event"""
         event = None
         try:
-            event_string = ''
-            #this is a little hacky, but it seems to work
-            if self.request.method == 'GET':
-                event_string = self.request.get('event')
-            else:
-                event_string = json.loads(self.request.body)['event']
+            event_string = kwargs['event']
             event_key = ndb.Key(urlsafe=event_string)
             event = event_key.get()
         except:
@@ -66,7 +62,7 @@ class HomeHandler(AdminWebAppHandler):
         """Handles get requests to the admin home page - listing all available events"""
         google_user = users.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        datamodel.GiftExchangeMember.update_and_retrieve_member(gift_exchange_key, google_user)
+        datamodel.GiftExchangeMember.update_and_retrieve_member_by_google_user(gift_exchange_key, google_user)
         query = datamodel.GiftExchangeEvent.get_all_events_query(gift_exchange_key)
         event_list = query.fetch(_DEFAULT_MAX_RESULTS) #maybe filter out the  events that have ended
         not_started_events = []
@@ -90,10 +86,10 @@ class HomeHandler(AdminWebAppHandler):
 
 class EventHandler(AdminWebAppHandler):
     """Handles requests for updating a particular event, including the participants"""
-    def get(self):
+    def get(self, *args, **kwargs):
         """Handles get requests to the page that shows an administrative view of an event"""
         event_string =''
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         event_display_name = _DEFAULT_DISPLAY_NAME
         money_limit = ''
         participant_list = []
@@ -123,7 +119,7 @@ class EventHandler(AdminWebAppHandler):
         self.add_template_values(template_values)
         self.render_template('event.html')
         
-    def post(self):
+    def post(self, *args, **kwargs):
         """Handles updating a particular event, including the participants. Expects a JSON object."""
         def _prune_participants(gift_exchange_key, event_key, name_index):
             """Deletes any participants from a given event that aren't in the name_index"""
@@ -171,7 +167,7 @@ class EventHandler(AdminWebAppHandler):
         data = json.loads(self.request.body)
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         message = 'Event Updated Successfully'
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         event_string = data['event']
         needs_saving = False
         event_display_name = data['event_display_name']
@@ -204,10 +200,10 @@ class EventHandler(AdminWebAppHandler):
 class DeleteHandler(AdminWebAppHandler):
     """Handles requests for deleting an event, including all participants associated with the event"""
     @event_required
-    def post(self):
+    def post(self, *args, **kwargs):
         """Takes a JSON request and deletes the event and all participants associated with it."""
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         participant_query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
         participant_list = participant_query.fetch(_DEFAULT_MAX_RESULTS)
         for participant in participant_list:
@@ -222,9 +218,9 @@ class DeleteHandler(AdminWebAppHandler):
 class ReportHandler(AdminWebAppHandler):
     """Handles showing a report for all the data about a particular event."""
     @event_required
-    def get(self):
+    def get(self, *args, **kwargs):
         """Displays a report about a particular event."""
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         query = datamodel.GiftExchangeParticipant.get_participants_in_event_query(gift_exchange_key, event.key)
         participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
@@ -239,9 +235,9 @@ class ReportHandler(AdminWebAppHandler):
 class InheritHandler(AdminWebAppHandler):
     """Handler for a particular event spawning a child event with the same defaults and previous targets filled in"""
     @event_required
-    def get(self):
+    def get(self, *args, **kwargs):
         """Handles the get requests for inheriting an event"""
-        parent_event = self.get_event()
+        parent_event = self.get_event(*args, **kwargs)
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         child_event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
         child_event.display_name = 'Sequel to ' + parent_event.display_name
@@ -257,12 +253,12 @@ class InheritHandler(AdminWebAppHandler):
             new_participant.family = participant.family
             new_participant.previous_target = participant.target
             new_participant.put()
-        self.redirect('/admin/event?event=' + child_event.key.urlsafe())
+        self.redirect(self.uri_for('event', event=child_event.key.urlsafe()))
 
 class StatusChangeHandler(AdminWebAppHandler):
     """Handler for changing for starting or stopping an event"""
     @event_required
-    def post(self):
+    def post(self, *args, **kwargs):
         """Post handler for starting or stopping an event. Expects a JSON object"""
         
         def _is_valid_assignment(source_participant, target_participant):
@@ -336,7 +332,7 @@ class StatusChangeHandler(AdminWebAppHandler):
     
         data = json.loads(self.request.body)
         status_change_type = data['status_change_type']
-        event = self.get_event()
+        event = self.get_event(*args, **kwargs)
         if status_change_type == 'start':
             _assign_participants(datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME), event.key)
             event.has_started = True
@@ -346,11 +342,21 @@ class StatusChangeHandler(AdminWebAppHandler):
             event.put()
         self.response.out.write(json.dumps(({'message': 'Event successfully updated', 'event_string': event.key.urlsafe()})))
 
+config = {
+  'webapp2_extras.auth': {
+    'user_model': 'datamodel.User',
+    'user_attributes': ['name']
+  },
+  'webapp2_extras.sessions': {
+    'secret_key': constants.SECRET_KEY
+  }
+}
+
 app = webapp2.WSGIApplication([
-    ('/admin/', HomeHandler),
-    ('/admin/event', EventHandler),
-    ('/admin/inherit', InheritHandler),
-    ('/admin/statuschange', StatusChangeHandler),
-    ('/admin/delete', DeleteHandler),
-    ('/admin/report', ReportHandler)
-], debug=False)
+    webapp2.Route('/admin/', HomeHandler, name='home'),
+    webapp2.Route('/admin/event/<event:.+>', handler=EventHandler, name='event'),
+    webapp2.Route('/admin/inherit/<event:.+>', handler=InheritHandler),
+    webapp2.Route('/admin/statuschange/<event:.+>', handler=StatusChangeHandler),
+    webapp2.Route('/admin/delete/<event:.+>', handler=DeleteHandler),
+    webapp2.Route('/admin/report/<event:.+>', handler=ReportHandler)
+], debug=False, config=config)
