@@ -39,8 +39,6 @@ from webapp2_extras import security
 #constants
 message_type_to_target = 1
 message_type_to_giver = 2
-member_type_native_user = 1
-member_type_google_user = 2
 _DEFAULT_GIFT_EXCHANGE_NAME = 'playground'
 _urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
 
@@ -53,8 +51,16 @@ def get_gift_exchange_key(gift_exchange_name):
     """Returns the default key that all data is stored under"""
     return ndb.Key('GiftExchange', gift_exchange_name)
 
-def free_text_to_safe_html_markup(text, maxlinklength):
-    def replacewithlink(matchobj):
+def free_text_to_safe_html_markup(text, max_link_length):
+    """Takes a string of user entered text and converts it to html, with a minimal amount of safe markup
+        :param text:
+            The string of user entered text
+        :param max_link_length:
+            The maximum length of a url. If longer, it will be truncated
+        :returns:
+            A string of HTML
+        """
+    def replace_with_link(matchobj):
         url = matchobj.group(0)
         text = unicode(url)
         if text.startswith('http://'):
@@ -65,15 +71,15 @@ def free_text_to_safe_html_markup(text, maxlinklength):
         if text.startswith('www.'):
             text = text.replace('www.', '', 1)
 
-        if len(text) > maxlinklength:
-            halflength = maxlinklength / 2
-            text = text[0:halflength] + '...' + text[len(text) - halflength:]
+        if len(text) > max_link_length:
+            half_length = max_link_length / 2
+            text = text[0:half_length] + '...' + text[len(text) - half_length:]
 
         return '<a class="comurl" href="' + url + '" target="_blank" rel="nofollow">' + text + '<img class="imglink" src="/media/images/linkout.png"></a>'
 
     if text != None and text != '':
         text = bleach.clean(text)
-        text = _urlfinderregex.sub(replacewithlink, text)
+        text = _urlfinderregex.sub(replace_with_link, text)
         return text.replace('\n', '<br />')
     return ''
 
@@ -174,6 +180,7 @@ class BaseHandler(webapp2.RequestHandler):
         return gift_exchange_member
 
 class User(webapp2_extras.appengine.auth.models.User):
+    """Class for extending the user model to allow local authentication"""
     def set_password(self, raw_password):
         """Sets the password for the current user
 
@@ -205,10 +212,6 @@ class User(webapp2_extras.appengine.auth.models.User):
 
 class GiftExchangeMember(ndb.Model):
     """A person that could be used in anonymous giving sessions"""
-    member_type = ndb.IntegerProperty(indexed=False)
-    """An enumeration representing the type of member
-        A value of 1 means it is a native user
-        A value of 2 means it is a user from app engine's google integration"""
     google_user_id = ndb.StringProperty(indexed=True)
     first_name = ndb.StringProperty(indexed=False)
     last_name = ndb.StringProperty(indexed=False)
@@ -217,7 +220,8 @@ class GiftExchangeMember(ndb.Model):
     subscribed_to_updates = ndb.BooleanProperty(indexed=False, default=True)
     
     @staticmethod
-    def get_member_by_user_key(gift_exchange_key, user_key):      
+    def get_member_by_user_key(gift_exchange_key, user_key):
+        """Gets a member by their user record"""   
         query = GiftExchangeMember.query(GiftExchangeMember.user_key==user_key, ancestor=gift_exchange_key)
         return query.get()
     
@@ -229,27 +233,27 @@ class GiftExchangeMember(ndb.Model):
     
     @staticmethod
     def create_member_by_native_user(gift_exchange_key, user, email):
+        """Create a member based off a native user account"""
         member = GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user.key)
         if member is None:
             member = GiftExchangeMember(parent=gift_exchange_key, 
                                         user_key=user.key,
                                         first_name=user.name,
                                         last_name=user.last_name, 
-                                        email=email, 
-                                        member_type=member_type_native_user)
+                                        email=email)
             member.put()
         return member
     
     @staticmethod
     def create_member_by_google_user(gift_exchange_key, google_user, first_name, last_name):
+        """Create a member based off a google account and some minimal extra information"""
         member = GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id())
         if member is None:
             member = GiftExchangeMember(parent=gift_exchange_key, 
                                         google_user_id=google_user.user_id(),
                                         first_name=first_name,
                                         last_name=last_name, 
-                                        email=google_user.email(), 
-                                        member_type=member_type_google_user)
+                                        email=google_user.email())
             member.put()
         return member
     

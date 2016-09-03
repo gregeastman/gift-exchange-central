@@ -60,6 +60,7 @@ def participant_required(handler):
     return check_participant
 
 def send_email_helper(recipient_name, recipient_email, subject, plain_text_content, unsubscribe_link):
+    """"Function that will sent an HTML email to a particular recipient with standard headers and footers"""
     plain_text = 'Hello ' + recipient_name + ',\n\n' + plain_text_content
     plain_text = plain_text + '\n\n\n-------------------------------------------------------------------------'
     plain_text = plain_text + '\nThis is an auto-generated email from Gift Exchange Central. Please do not reply to this email.'
@@ -121,7 +122,10 @@ class LoginHandler(MainWebAppHandler):
         self.render_template('login.html')
 
 class GoogleLoginHandler(MainWebAppHandler):
+    """Class for handling logins that simply requires google authentication before proceeding"""
     def get(self, *args, **kwargs):
+        """Get method for google authentication login. Should be a passthrough, but
+             handles the scenario where an account is not yet created"""
         if self.get_gift_exchange_member(*args, **kwargs):
             self.redirect(self.uri_for('home'))
             return
@@ -132,12 +136,21 @@ class GoogleLoginHandler(MainWebAppHandler):
 class LogoutHandler(MainWebAppHandler):
     """Handles get requests for logging out"""
     def get(self):
-        gift_exchange_member = self.get_gift_exchange_member()
-        if gift_exchange_member:
-            if gift_exchange_member.member_type == datamodel.member_type_google_user:
-                self.redirect(users.create_logout_url(self.request.uri))
-                return
-        self.auth.unset_session()
+        """Logs a user out. Checks if the user is logged in natively and logs them out, otherwise will log
+            them out of google"""
+        auth = self.auth
+        session_user = auth.get_user_by_session()
+        user_object = None
+        if session_user:
+            try:
+                user_object = datamodel.User.get_by_id(session_user['user_id'])
+            except:
+                pass
+        if user_object:
+            self.auth.unset_session()
+        else:
+            self.redirect(users.create_logout_url(self.uri_for('login')))
+            return        
         self.redirect(self.uri_for('login'))
 
 class SignupHandler(MainWebAppHandler):
@@ -266,8 +279,10 @@ class VerificationHandler(MainWebAppHandler):
             self.abort(404)
 
 class SetPasswordHandler(MainWebAppHandler):
+    """Class for setting a user's password."""
     @member_required
     def post(self):
+        """Handles the request to set a user's password"""
         data = json.loads(self.request.body)
         password = data['password']
         old_token = data['token']
@@ -283,10 +298,13 @@ class SetPasswordHandler(MainWebAppHandler):
 
 
 class ForgotPasswordHandler(MainWebAppHandler):
+    """Class for handling a forgotten password."""
     def get(self):
+        """Handles the front-end for a user requesting a forgotten password."""
         self.render_template('forgot.html')
 
     def post(self):
+        """Handles the request for a user forgetting their password and send an email with verification"""
         data = json.loads(self.request.body)
         username = data['username']
         user = self.user_model.get_by_auth_id(username)
