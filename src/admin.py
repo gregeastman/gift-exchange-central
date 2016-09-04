@@ -29,6 +29,8 @@ _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_DISPLAY_NAME = '<ENTER A NAME>'
 _DEFAULT_MAX_RESULTS = 200
 
+member_required = datamodel.member_required
+
 def event_required(handler):
     """
         Decorator that checks if there's an event associated with the current session.
@@ -58,6 +60,7 @@ class AdminWebAppHandler(datamodel.BaseHandler):
 
 class HomeHandler(AdminWebAppHandler):
     """Handles the requests to the admin home page"""
+    @member_required
     def get(self):
         """Handles get requests to the admin home page - listing all available events"""
         google_user = users.get_current_user()
@@ -86,6 +89,7 @@ class HomeHandler(AdminWebAppHandler):
 
 class EventHandler(AdminWebAppHandler):
     """Handles requests for updating a particular event, including the participants"""
+    @member_required
     def get(self, *args, **kwargs):
         """Handles get requests to the page that shows an administrative view of an event"""
         event_string =''
@@ -119,6 +123,7 @@ class EventHandler(AdminWebAppHandler):
         self.add_template_values(template_values)
         self.render_template('event.html')
         
+    @member_required
     def post(self, *args, **kwargs):
         """Handles updating a particular event, including the participants. Expects a JSON object."""
         def _prune_participants(gift_exchange_key, event_key, name_index):
@@ -200,6 +205,7 @@ class EventHandler(AdminWebAppHandler):
 class DeleteHandler(AdminWebAppHandler):
     """Handles requests for deleting an event, including all participants associated with the event"""
     @event_required
+    @member_required
     def post(self, *args, **kwargs):
         """Takes a JSON request and deletes the event and all participants associated with it."""
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
@@ -218,6 +224,7 @@ class DeleteHandler(AdminWebAppHandler):
 class ReportHandler(AdminWebAppHandler):
     """Handles showing a report for all the data about a particular event."""
     @event_required
+    @member_required
     def get(self, *args, **kwargs):
         """Displays a report about a particular event."""
         event = self.get_event(*args, **kwargs)
@@ -235,6 +242,7 @@ class ReportHandler(AdminWebAppHandler):
 class InheritHandler(AdminWebAppHandler):
     """Handler for a particular event spawning a child event with the same defaults and previous targets filled in"""
     @event_required
+    @member_required
     def get(self, *args, **kwargs):
         """Handles the get requests for inheriting an event"""
         parent_event = self.get_event(*args, **kwargs)
@@ -258,6 +266,7 @@ class InheritHandler(AdminWebAppHandler):
 class StatusChangeHandler(AdminWebAppHandler):
     """Handler for changing for starting or stopping an event"""
     @event_required
+    @member_required
     def post(self, *args, **kwargs):
         """Post handler for starting or stopping an event. Expects a JSON object"""
         

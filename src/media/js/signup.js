@@ -20,7 +20,7 @@ function create_user()
     	  "lastname": $("#txt_lastname").val(),
     	  "username": $("#txt_username").val(),
     	  "password": $("#txt_password").val(),
-    	  "email": $("#txt_email").val(),
+    	  "email": $("#txt_email").val()
       })
     })
     .done(function( data ) {

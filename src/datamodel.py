@@ -47,6 +47,18 @@ _JINJA_ENVIRONMENT = jinja2.Environment(
     extensions=['jinja2.ext.autoescape'],
     autoescape=True)
 
+def member_required(handler):
+    """
+        Decorator that checks if there's a member associated with the current session.
+        Will also fail if there's no session present.
+    """
+    def check_login(self, *args, **kwargs):
+        if not self.get_gift_exchange_member():
+            self.redirect(self.uri_for('login'), abort=True)
+        else:
+            return handler(self, *args, **kwargs)
+    return check_login
+
 def get_gift_exchange_key(gift_exchange_name):
     """Returns the default key that all data is stored under"""
     return ndb.Key('GiftExchange', gift_exchange_name)
@@ -218,6 +230,18 @@ class GiftExchangeMember(ndb.Model):
     user_key = ndb.KeyProperty(indexed=True, kind=User)
     email = ndb.StringProperty(indexed=True)
     subscribed_to_updates = ndb.BooleanProperty(indexed=False, default=True)
+    
+    def link_google_user(self, google_user):
+        """Links a member to a particular google account"""
+        self.google_user_id = google_user.user_id()
+        if self.email != google_user.email():
+            self.email = google_user.email()
+        self.put()
+    
+    def unlink_google_user(self):
+        """Deletes the link to a particular google account"""
+        self.google_user_id = None
+        self.put()
     
     @staticmethod
     def get_member_by_user_key(gift_exchange_key, user_key):

@@ -17,11 +17,6 @@ handlers:
   login: required
   script: main.app
   
-- url: /googlesignup
-  secure: always
-  login: required
-  script: main.app
-  
 - url: /admin/.*
   secure: always
   login: admin

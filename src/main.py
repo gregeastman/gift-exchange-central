@@ -32,17 +32,7 @@ from webapp2_extras.auth import InvalidPasswordError
 _DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_MAX_RESULTS = 200
 
-def member_required(handler):
-    """
-        Decorator that checks if there's a member associated with the current session.
-        Will also fail if there's no session present.
-    """
-    def check_login(self, *args, **kwargs):
-        if not self.get_gift_exchange_member():
-            self.redirect(self.uri_for('login'), abort=True)
-        else:
-            return handler(self, *args, **kwargs)
-    return check_login
+member_required = datamodel.member_required
 
 def participant_required(handler):
     """
@@ -161,7 +151,12 @@ class SignupHandler(MainWebAppHandler):
         default_native = True
         if google_user:
             default_native = False
-        self.add_template_values({'google_user': google_user, 'default_native': default_native})
+        template_values = {
+                'google_user': google_user,
+                'default_native': default_native,
+                'google_login_url': users.create_login_url(self.uri_for('signup'))
+            }
+        self.add_template_values(template_values)
         self.render_template('signup.html')
     
     def post(self):
@@ -184,7 +179,6 @@ class SignupHandler(MainWebAppHandler):
             user_name = data['username']
             email = data['email']
             password = data['password']
-            unique_properties = ['email_address']
             if not user_name:
                 self.response.out.write(json.dumps(({'message': 'Username is required.'})))
                 return
@@ -194,6 +188,7 @@ class SignupHandler(MainWebAppHandler):
             if not email:
                 self.response.out.write(json.dumps(({'message': 'Email is required.'})))
                 return
+            unique_properties = ['email_address']
             user_data = self.user_model.create_user(user_name,
               unique_properties,
               email_address=email, name=name, password_raw=password,
@@ -267,13 +262,14 @@ class VerificationHandler(MainWebAppHandler):
             self.render_template('verification.html')
             return
         elif verification_type == 'p':
+            # remove signup token, we don't want users to come back with an old link
+            # this is pretty aggressive to remove it immediately, since it means the user can't refresh the page
+            # but it's easy to request a new link
+            self.user_model.delete_signup_token(user.get_id(), signup_token)
+            
             # supply user to the page
-            template_values = {
-                          'user': user,
-                          'token': signup_token
-                          }
-            self.add_template_values(template_values)
-            self.render_template('resetpassword.html')
+            self.add_template_values({'user': user})
+            self.render_template('setpassword.html')
         else:
             logging.info('verification type not supported')
             self.abort(404)
@@ -281,19 +277,22 @@ class VerificationHandler(MainWebAppHandler):
 class SetPasswordHandler(MainWebAppHandler):
     """Class for setting a user's password."""
     @member_required
+    def get(self):
+        # supply user to the page
+        self.add_template_values({'user': self.user})
+        self.render_template('setpassword.html')
+    
+    @member_required
     def post(self):
         """Handles the request to set a user's password"""
         data = json.loads(self.request.body)
         password = data['password']
-        old_token = data['token']
         if not password or password != data['confirm_password']:
             self.response.out.write(json.dumps(({'message': 'Passwords do not match'})))
             return
         user = self.user
         user.set_password(password)
         user.put()
-        # remove signup token, we don't want users to come back with an old link
-        self.user_model.delete_signup_token(user.get_id(), old_token)
         self.response.out.write(json.dumps(({'message': ''})))
 
 
@@ -324,7 +323,6 @@ class ForgotPasswordHandler(MainWebAppHandler):
         message_content = message_content + 'Verify your account at ' + verification_url
         send_email_helper(user.name, user.email_address, 'Password Reset for Gift Exchange Central', message_content, None)
         self.response.out.write(json.dumps(({'message': ''})))
-
 
 class HomeHandler(MainWebAppHandler):
     """The home page of the gift exchange app. This finds any events that a member is in"""
@@ -433,11 +431,11 @@ class PreferencesHandler(MainWebAppHandler):
     @member_required
     def get(self):
         """Handles get requests and serves up the preference page."""
-        #TODO: handle switching from native to google, handle updating first/lastname/email/etc.
         member = self.get_gift_exchange_member()
         template_values = {
                            'page_title': 'User Preferences',
                            'google_user': users.get_current_user(),
+                           'google_login_url': users.create_login_url(self.uri_for('preferences')),
                            'member': member,
                         }
         self.add_template_values(template_values)
@@ -447,15 +445,71 @@ class PreferencesHandler(MainWebAppHandler):
     def post(self):
         """Handles posts requests for updating preferences. Requires a JSON object."""
         data = json.loads(self.request.body)
+        member_is_dirty = False
+        member = self.get_gift_exchange_member()
+        first_name = data['name']
+        last_name = data['lastname']
+        email = data['email']
         subscribed_string = data['subscribed_string']
         subscribed_to_updates = True
         if subscribed_string == 'no':
             subscribed_to_updates = False
-        member = self.get_gift_exchange_member()
+        if not first_name:
+            self.response.out.write(json.dumps(({'message': 'First name cannot be blank'})))
+            return
+        if not last_name:
+            self.response.out.write(json.dumps(({'message': 'Last name cannot be blank'})))
+            return
+        if not email:
+            self.response.out.write(json.dumps(({'message': 'Email cannot be blank'})))
+            return
         if member.subscribed_to_updates != subscribed_to_updates:
             member.subscribed_to_updates = subscribed_to_updates
+            member_is_dirty = True
+        if member.first_name != first_name:
+            member.first_name = first_name
+            member_is_dirty = True
+        if member.last_name != last_name:
+            member.last_name = last_name
+            member_is_dirty =True
+        if member.email != email:
+            #The UI doesn't allow a change, but if the user is a google user, this can temporarily change the email
+            #That doesn't really matter, since it will be reset
+            member.email = email
+            #Consider sending a verification email
+            member_is_dirty = True
+        if member_is_dirty:
             member.put()
-        self.response.out.write(json.dumps(({'message': 'Preferences Updated Successfully'})))
+        self.response.out.write(json.dumps(({'message': ''})))
+
+class GoogleLinkHandler(MainWebAppHandler):
+    """Class for handling linking and unlinking google accounts"""
+    @member_required
+    def post(self, *args, **kwargs):
+        """Handles the request to link or unlink a google account from a member"""
+        data = json.loads(self.request.body)
+        change_type = data['type']
+        member = self.get_gift_exchange_member(*args, **kwargs)
+        if change_type == 'link':
+            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            google_user = users.get_current_user()
+            if not google_user:
+                self.response.write(json.dumps(({'message': 'Must be logged into Google to link account.'})))
+                return
+            if datamodel.GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id()):
+                self.response.write(json.dumps(({'message': 'Cannot link Google account because it is already linked to another user.'})))
+                return
+            member.link_google_user(google_user)
+            self.response.write(json.dumps(({'message': ''})))
+            return
+        elif change_type == 'unlink':
+            if member.user_key is None:
+                self.response.write(json.dumps(({'message': 'Cannot unlink google account if there is no native user.'})))
+                return
+            member.unlink_google_user()
+            self.response.write(json.dumps(({'message': ''})))
+            return
+        self.response.write(json.dumps(({'message': 'Unsupported command'})))
 
 class UnsubscribeHandler(MainWebAppHandler):
     """Handles unsubscribing a member"""
@@ -529,22 +583,22 @@ config = {
 }
 
 app = webapp2.WSGIApplication([
-    webapp2.Route('/', LoginHandler, name='root'),
-    webapp2.Route('/login', LoginHandler, name='login'),
+    webapp2.Route('/', handler=LoginHandler, name='root'),
+    webapp2.Route('/login', handler=LoginHandler, name='login'),
     webapp2.Route('/googlelogin', GoogleLoginHandler),
-    webapp2.Route('/logout', LogoutHandler, name='logout'),
-    webapp2.Route('/signup', SignupHandler),
-    webapp2.Route('/googlesignup', SignupHandler),
+    webapp2.Route('/logout', handler=LogoutHandler, name='logout'),
+    webapp2.Route('/signup', handler=SignupHandler, name='signup'),
     webapp2.Route('/<type:v|p>/<user_id:\d+>-<signup_token:.+>',
       handler=VerificationHandler, name='verification'),
     webapp2.Route('/password', SetPasswordHandler),
-    webapp2.Route('/forgot', ForgotPasswordHandler, name='forgot'),
+    webapp2.Route('/forgot', handler=ForgotPasswordHandler, name='forgot'),
+    webapp2.Route('/link', GoogleLinkHandler),
     webapp2.Route('/main/<participant:.+>', handler=MainHandler, name='main'),
-    webapp2.Route('/home', HomeHandler, name='home'),
-    webapp2.Route('/preferences', PreferencesHandler),
+    webapp2.Route('/home', handler=HomeHandler, name='home'),
+    webapp2.Route('/preferences', handler=PreferencesHandler, name='preferences'),
     webapp2.Route('/message/<participant:.+>', handler=MessageHandler),
     webapp2.Route('/update/<participant:.+>', handler=UpdateHandler),
-    webapp2.Route('/unsubscribe', UnsubscribeHandler, name="unsubscribe"),
+    webapp2.Route('/unsubscribe', handler=UnsubscribeHandler, name="unsubscribe"),
     webapp2.Route('/assign/<participant:.+>', handler=AssignmentHandler)
 ], debug=False, config=config)
 

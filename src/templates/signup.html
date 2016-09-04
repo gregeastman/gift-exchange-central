@@ -30,7 +30,7 @@
 				{% if google_user %}
 				Link to {{ google_user.email() }}
 				{% else %}
-				<a href="/googlesignup">Login to link to a Google account</a>
+				<a href="{{ google_login_url }}">Login to link to a Google account</a>
 				{% endif %}
 			</td>
 			<td>

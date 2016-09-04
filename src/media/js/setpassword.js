@@ -20,8 +20,8 @@ function update_password()
     		$("#txt_password").prop('disabled', true);
     		disable_input_controls("#txt_password");
     		disable_input_controls("#txt_confirm_password");
-    		$("#btn_reset").prop('disabled', true);
-    		$("#span_status_message").html("Password successfully updated.<br /><a href=\"/login\">Login!</a>");
+    		$("#btn_update_password").prop('disabled', true);
+    		$("#span_status_message").text("Password successfully updated.");
     	}
     });
 }
