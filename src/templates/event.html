@@ -47,7 +47,7 @@
 			{% for participant in participant_list %}
 				<tr>
 					<td>{{ participant.display_name }}</td>
-					<td>{{ participant.get_member().email }}</td>
+					<td>{{ participant.get_member().get_email_address() }}</td>
 					<td>{{ participant.family }}</td>
 					{% if has_started == False %}<td><img src="/media/images/edit.png" class="btn_edit_row"/><img src="/media/images/delete.png" class="btn_delete_row"/></td>{% endif %}
 				</tr>
@@ -66,7 +66,7 @@
 	<span id="span_email_options" style="display:none;">
 		<select class="member_select">
 		{% for member in member_list %}
-			<option value="{{ member.email }}">{{ member.email }}</option>	
+			<option value="{{ member.get_email_address() }}">{{ member.get_email_address() }}</option>	
 		{% endfor %}
 		</select>
 	</span>

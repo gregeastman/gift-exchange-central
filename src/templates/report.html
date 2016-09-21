@@ -24,7 +24,7 @@
 			<td class="key">{{ participant.key.urlsafe() }}</td>
 			<td class="display_name">{{ participant.display_name }}</td>
 			<td class="family">{{ participant.family }}</td>
-			<td class="email">{{ participant.get_member().email }}</td>
+			<td class="email">{{ participant.get_member().get_email_address() }}</td>
 			<td class="target">{{ participant.target }}</td>
 			<td class="is_target_known">{% if participant.is_target_known %}Yes{% else %}No{% endif %}</td>
 			<td class="previous_target">{{ participant.previous_target }}</td>

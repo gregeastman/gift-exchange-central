@@ -31,6 +31,7 @@ function create_user()
     	} 
     	else 
     	{
+    		$("#div_error").hide();
     		disable_input_controls(".native_field");
     		disable_input_controls("#txt_name");
     		disable_input_controls("#txt_lastname");

@@ -15,24 +15,34 @@
 # limitations under the License.
 #
 
-from google.appengine.api import users
-from google.appengine.ext import ndb
-from google.appengine.api import mail
-
-import datamodel
-import constants
-
-import webapp2
+#Natively provided by python libraries
 import json
 import logging
 
-from webapp2_extras.auth import InvalidAuthIdError
-from webapp2_extras.auth import InvalidPasswordError
+#Natively provided by app engine
+import google.appengine.ext.ndb as ndb
+import google.appengine.api.users as google_authentication
+import google.appengine.api.mail
 
-_DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
+#Includes specified by the app.yaml
+import webapp2
+import webapp2_extras.auth
+#import webapp2_extras.auth.InvalidAuthIdError
+#import webapp2_extras.auth.InvalidPasswordError
+
+#App specific includes
+import datamodel
+import constants
+
+
 _DEFAULT_MAX_RESULTS = 200
+_DEFAULT_GIFT_EXCHANGE_NAME = datamodel.DEFAULT_GIFT_EXCHANGE_NAME
+_MESSAGE_TYPE_TO_TARGET = datamodel.MESSAGE_TYPE_TO_TARGET
+_MESSAGE_TYPE_TO_GIVER = datamodel.MESSAGE_TYPE_TO_GIVER
 
 member_required = datamodel.member_required
+free_text_to_safe_html_markup = datamodel.free_text_to_safe_html_markup
+get_gift_exchange_key = datamodel.get_gift_exchange_key
 
 def participant_required(handler):
     """
@@ -54,12 +64,12 @@ def send_email_helper(recipient_name, recipient_email, subject, plain_text_conte
     plain_text = 'Hello ' + recipient_name + ',\n\n' + plain_text_content
     plain_text = plain_text + '\n\n\n-------------------------------------------------------------------------'
     plain_text = plain_text + '\nThis is an auto-generated email from Gift Exchange Central. Please do not reply to this email.'
-    body = datamodel.free_text_to_safe_html_markup(plain_text, 9999)
+    body = free_text_to_safe_html_markup(plain_text, 9999)
     if unsubscribe_link:
         body = body + '<br /><a href="' + unsubscribe_link + '">Unsubscribe from automated updates</a>'
         plain_text = plain_text + '\nUnsubscribe: ' + unsubscribe_link
     
-    message = mail.EmailMessage(
+    message = google.appengine.api.mail.EmailMessage(
                 sender='anonymous@gift-exchange-central.appspotmail.com',
                 subject=subject)
     message.to = recipient_email
@@ -100,13 +110,15 @@ class LoginHandler(MainWebAppHandler):
             session_user = self.auth.get_user_by_password(username, password, remember=True,
                                                save_session=True)
             user_object = datamodel.User.get_by_id(session_user['user_id'])
-            if not user_object.verified: #require user to be verified to login
+            gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user_object.key)
+            if not member.verified_email: #require user to be verified to login
                 self.auth.unset_session()
                 failure_message = 'User is not yet validated. Check your email for a link to validate your account.'
             else:
                 self.redirect(self.uri_for('home'))
                 return
-        except (InvalidAuthIdError, InvalidPasswordError) as e:
+        except (webapp2_extras.auth.InvalidAuthIdError, webapp2_extras.auth.InvalidPasswordError) as e:
             logging.info('Login failed for user %s because of %s', username, type(e))
         self.add_template_values({'username': username, 'failure_message': failure_message})
         self.render_template('login.html')
@@ -119,8 +131,8 @@ class GoogleLoginHandler(MainWebAppHandler):
         if self.get_gift_exchange_member(*args, **kwargs):
             self.redirect(self.uri_for('home'))
             return
-        failure_message = 'Could not find user for ' + users.get_current_user().email() + '. You must create an account first.'
-        self.add_template_values({'failure_message': failure_message, 'google_logout': users.create_logout_url(self.uri_for('login'))})
+        failure_message = 'Could not find user for ' + google_authentication.get_current_user().email() + '. You must create an account first.'
+        self.add_template_values({'failure_message': failure_message, 'google_logout': google_authentication.create_logout_url(self.uri_for('login'))})
         self.render_template('login.html')
 
 class LogoutHandler(MainWebAppHandler):
@@ -139,7 +151,7 @@ class LogoutHandler(MainWebAppHandler):
         if user_object:
             self.auth.unset_session()
         else:
-            self.redirect(users.create_logout_url(self.uri_for('login')))
+            self.redirect(google_authentication.create_logout_url(self.uri_for('login')))
             return        
         self.redirect(self.uri_for('login'))
 
@@ -147,14 +159,14 @@ class SignupHandler(MainWebAppHandler):
     """Class for processing new user signup"""
     def get(self):
         """Handles get requests for signing up"""
-        google_user = users.get_current_user()
+        google_user = google_authentication.get_current_user()
         default_native = True
         if google_user:
             default_native = False
         template_values = {
                 'google_user': google_user,
                 'default_native': default_native,
-                'google_login_url': users.create_login_url(self.uri_for('signup'))
+                'google_login_url': google_authentication.create_login_url(self.uri_for('signup'))
             }
         self.add_template_values(template_values)
         self.render_template('signup.html')
@@ -173,7 +185,7 @@ class SignupHandler(MainWebAppHandler):
         if not lastname:
             self.response.out.write(json.dumps(({'message': 'Last name is required.'})))
             return
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
     
         if account_type == 'native':
             user_name = data['username']
@@ -188,19 +200,36 @@ class SignupHandler(MainWebAppHandler):
             if not email:
                 self.response.out.write(json.dumps(({'message': 'Email is required.'})))
                 return
-            unique_properties = ['email_address']
-            user_data = self.user_model.create_user(user_name,
-              unique_properties,
-              email_address=email, name=name, password_raw=password,
-              last_name=lastname, verified=False)
+            email_object = None
+            try:
+                email_object = datamodel.MemberEmail.create_member_email(email)
+            except:
+                email_object = None
+            if not email_object:
+                self.response.out.write(json.dumps(({'message': 'Email address already exists'})))
+                return
+            #unique_properties = ['email_address']
+            #user_data = self.user_model.create_user(user_name,
+            #  unique_properties,
+            #  email_address=email, name=name, password_raw=password,
+            #  last_name=lastname, verified=False)
+            user_data = self.user_model.create_user(user_name, name=name, password_raw=password)
             if not user_data[0]: #user_data is a tuple
-                self.response.out.write(json.dumps(({'message': 'Username or email already exists' % (user_name, user_data[1])})))
+                msg = ''
+                if 'auth_id' in user_data[1]:
+                    msg = 'Username already exists: ' + user_name
+                #if 'email_address' in user_data[1]:
+                #    if msg:
+                #        msg = msg + '\n'
+                #    msg = msg + 'Email address already exists: ' + email
+                email_object.key.delete() #clean up object
+                self.response.out.write(json.dumps(({'message': msg})))
                 return
             
             user = user_data[1]
             user_id = user.get_id()
             
-            datamodel.GiftExchangeMember.create_member_by_native_user(gift_exchange_key, user, email)
+            datamodel.GiftExchangeMember.create_member_by_native_user(gift_exchange_key, user, email_object, name, lastname)
             
             token = self.user_model.create_signup_token(user_id)
         
@@ -213,7 +242,7 @@ class SignupHandler(MainWebAppHandler):
             self.response.out.write(json.dumps(({'message': ''})))
             return
         elif account_type == 'google':
-            google_user = users.get_current_user()
+            google_user = google_authentication.get_current_user()
             if google_user is None:
                 self.response.out.write(json.dumps(({'message': 'Cannot create google user when not logged in.'})))
                 return
@@ -255,10 +284,10 @@ class VerificationHandler(MainWebAppHandler):
         if verification_type == 'v':
             # remove signup token, we don't want users to come back with an old link
             self.user_model.delete_signup_token(user.get_id(), signup_token)
-    
-            if not user.verified:
-                user.verified = True
-                user.put()
+            
+            gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user.key)
+            member.verify_email_address()
             self.render_template('verification.html')
             return
         elif verification_type == 'p':
@@ -321,7 +350,9 @@ class ForgotPasswordHandler(MainWebAppHandler):
     
         message_content = 'You have signed up for a new account at Gift Exchange Central: ' + self.uri_for('root')
         message_content = message_content + 'Verify your account at ' + verification_url
-        send_email_helper(user.name, user.email_address, 'Password Reset for Gift Exchange Central', message_content, None)
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user.key)
+        send_email_helper(member.first_name, member.get_email_address(), 'Password Reset for Gift Exchange Central', message_content, None)
         self.response.out.write(json.dumps(({'message': ''})))
 
 class HomeHandler(MainWebAppHandler):
@@ -329,7 +360,7 @@ class HomeHandler(MainWebAppHandler):
     @member_required
     def get(self):
         """The handler for get requests to the home page"""
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         member = self.get_gift_exchange_member()
         all_participants = []
         if member is not None:
@@ -354,7 +385,7 @@ class MainHandler(MainWebAppHandler):
     def get(self, *args, **kwargs):
         """Handles get requests for the main page of a given event."""
         gift_exchange_participant = self.get_participant(*args, **kwargs)
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
                                                                             gift_exchange_key, 
                                                                             gift_exchange_participant.target,
@@ -366,7 +397,7 @@ class MainHandler(MainWebAppHandler):
             query = datamodel.GiftExchangeMessage.get_message_exchange_query(gift_exchange_key, gift_exchange_participant, target_participant)
             target_messages = query.fetch(_DEFAULT_MAX_RESULTS)
             for idea in target_participant.idea_list:
-                target_idea_list.append(datamodel.free_text_to_safe_html_markup(idea, 60))           
+                target_idea_list.append(free_text_to_safe_html_markup(idea, 60))           
         giver = gift_exchange_participant.get_giver()
         if giver:
             query = datamodel.GiftExchangeMessage.get_message_exchange_query(gift_exchange_key, giver, gift_exchange_participant)
@@ -400,7 +431,7 @@ class UpdateHandler(MainWebAppHandler):
             giver = gift_exchange_participant.get_giver()
             if giver is not None:
                 member = giver.get_member()
-                if member.email and member.subscribed_to_updates:
+                if member.get_email_address() and member.subscribed_to_updates:
                     body = gift_exchange_participant.display_name + ' has updated their profile with new ideas for '
                     body = body + gift_exchange_participant.get_event().display_name
                     body = body + '\n\n'
@@ -409,7 +440,7 @@ class UpdateHandler(MainWebAppHandler):
                     #Given that ideas are updated on every save, would only want to send message on navigating away from page
                     #email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update'
                     #unsubscribe_link = self.uri_for('unsubscribe') + '?gift_exchange_member=' + member.key.urlsafe()
-                    #send_email_helper(giver.display_name, member.email, email_subject, body, unsubscribe_link)
+                    #send_email_helper(giver.display_name, member.get_email_address(), email_subject, body, unsubscribe_link)
         self.response.out.write(json.dumps(({'message': message})))
         
 class AssignmentHandler(MainWebAppHandler):
@@ -434,8 +465,8 @@ class PreferencesHandler(MainWebAppHandler):
         member = self.get_gift_exchange_member()
         template_values = {
                            'page_title': 'User Preferences',
-                           'google_user': users.get_current_user(),
-                           'google_login_url': users.create_login_url(self.uri_for('preferences')),
+                           'google_user': google_authentication.get_current_user(),
+                           'google_login_url': google_authentication.create_login_url(self.uri_for('preferences')),
                            'member': member,
                         }
         self.add_template_values(template_values)
@@ -444,6 +475,7 @@ class PreferencesHandler(MainWebAppHandler):
     @member_required
     def post(self):
         """Handles posts requests for updating preferences. Requires a JSON object."""
+        #TODO: update client to show email message
         data = json.loads(self.request.body)
         member_is_dirty = False
         member = self.get_gift_exchange_member()
@@ -463,21 +495,48 @@ class PreferencesHandler(MainWebAppHandler):
         if not email:
             self.response.out.write(json.dumps(({'message': 'Email cannot be blank'})))
             return
+        email_object = None
+        if member.get_email_address() != email:
+            #The UI doesn't allow a change, but if the user is a google user, this can temporarily change the email
+            #That doesn't really matter, since it will be reset    
+            try:
+                email_object = datamodel.MemberEmail.create_member_email(email)
+            except:
+                email_object = None
+            if email_object is None:
+                self.response.out.write(json.dumps(({'message': 'Email is already in use'})))
+                return
+            #clean up old pending key
+            if member.pending_email_key:
+                member.pending_email_key.get().key.delete()
         if member.subscribed_to_updates != subscribed_to_updates:
             member.subscribed_to_updates = subscribed_to_updates
             member_is_dirty = True
         if member.first_name != first_name:
             member.first_name = first_name
             member_is_dirty = True
+            try:
+                user_object = member.user_key.get()
+                user_object.name = first_name
+                user_object.put()
+            except:
+                pass
         if member.last_name != last_name:
             member.last_name = last_name
             member_is_dirty =True
-        if member.email != email:
-            #The UI doesn't allow a change, but if the user is a google user, this can temporarily change the email
-            #That doesn't really matter, since it will be reset
-            member.email = email
-            #Consider sending a verification email
+        if email_object is not None:
+            member.pending_email_key = email_object.key
             member_is_dirty = True
+            user_id = member.user_key.id()
+            token = self.user_model.create_signup_token(user_id)
+        
+            verification_url = self.uri_for('verification', type='v', user_id=user_id,
+              signup_token=token, _full=True)
+        
+            message_content = 'You have updated your email at Gift Exchange Central: ' + self.uri_for('root')
+            message_content = message_content + 'Verify your email address at ' + verification_url
+            send_email_helper(member.first_name, email, 'Email Verification for Gift Exchange Central', message_content, None)
+            
         if member_is_dirty:
             member.put()
         self.response.out.write(json.dumps(({'message': ''})))
@@ -491,8 +550,8 @@ class GoogleLinkHandler(MainWebAppHandler):
         change_type = data['type']
         member = self.get_gift_exchange_member(*args, **kwargs)
         if change_type == 'link':
-            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            google_user = users.get_current_user()
+            gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            google_user = google_authentication.get_current_user()
             if not google_user:
                 self.response.write(json.dumps(({'message': 'Must be logged into Google to link account.'})))
                 return
@@ -545,7 +604,7 @@ class MessageHandler(MainWebAppHandler):
         message = 'Could not send message'
         gift_exchange_participant = self.get_participant(*args, **kwargs)
         participant_key = gift_exchange_participant.key.urlsafe()
-        gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         message_type = data['message_type']
         email_body = data['email_body']
         if not email_body:
@@ -556,19 +615,17 @@ class MessageHandler(MainWebAppHandler):
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
-                if target_participant.get_member().email:
+                if target_participant.get_member().get_email_address():
                     message = 'Message successfully sent'
-                    send_email_helper(target_participant.display_name, target_participant.get_member().email, 'Your Secret Santa Has Sent You A Message', email_body, None)
-                message_type_enum = datamodel.message_type_to_target
-                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, message_type_enum, email_body)
+                    send_email_helper(target_participant.display_name, target_participant.get_member().get_email_address(), 'Your Secret Santa Has Sent You A Message', email_body, None)
+                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_TARGET, email_body)
             elif message_type == 'giver':
                 giver = gift_exchange_participant.get_giver()
                 message = 'Message successfully sent'
                 if giver is not None:
-                    if giver.get_member().email:
-                        send_email_helper(giver.display_name, giver.get_member().email, gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
-                message_type_enum = datamodel.message_type_to_giver
-                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, message_type_enum, email_body)
+                    if giver.get_member().get_email_address():
+                        send_email_helper(giver.display_name, giver.get_member().get_email_address(), gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
+                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_GIVER, email_body)
         self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
 
 

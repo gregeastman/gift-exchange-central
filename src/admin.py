@@ -15,17 +15,23 @@
 # limitations under the License.
 #
 
-from google.appengine.api import users
-from google.appengine.ext import ndb
-
-import datamodel
-import constants
-
-import webapp2
+#Natively provided by python libraries
 import json
 import random
 
-_DEFAULT_GIFT_EXCHANGE_NAME = datamodel._DEFAULT_GIFT_EXCHANGE_NAME
+#Natively provided by app engine
+import google.appengine.ext.ndb as ndb
+import google.appengine.api.users as google_authentication
+
+#Includes specified by the app.yaml
+import webapp2
+
+#App specific includes
+import datamodel
+import constants
+
+
+_DEFAULT_GIFT_EXCHANGE_NAME = datamodel.DEFAULT_GIFT_EXCHANGE_NAME
 _DEFAULT_DISPLAY_NAME = '<ENTER A NAME>'
 _DEFAULT_MAX_RESULTS = 200
 
@@ -63,7 +69,7 @@ class HomeHandler(AdminWebAppHandler):
     @member_required
     def get(self):
         """Handles get requests to the admin home page - listing all available events"""
-        google_user = users.get_current_user()
+        google_user = google_authentication.get_current_user()
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         datamodel.GiftExchangeMember.update_and_retrieve_member_by_google_user(gift_exchange_key, google_user)
         query = datamodel.GiftExchangeEvent.get_all_events_query(gift_exchange_key)

@@ -15,31 +15,32 @@
 # limitations under the License.
 #
 
-from google.appengine.ext import ndb
-from google.appengine.api import users
-
-from webapp2_extras import auth
-from webapp2_extras import sessions
-
-from datetime import timedelta
+#Natively provided by python libraries
+import datetime
 import os
 import time
 
+#Natively provided by app engine
+import google.appengine.ext.ndb as ndb
+import google.appengine.api.users as google_authentication
+
+#Includes specified by the app.yaml
+import webapp2
+import jinja2
+import webapp2_extras.auth
+import webapp2_extras.sessions
+import webapp2_extras.appengine.auth.models
+import webapp2_extras.security
+
+#Included third party libraries distributed with the project
 import re
 import bleach
 
-import webapp2
-import jinja2
-
-#from webapp2_extras import auth
-#from webapp2_extras import sessions
-import webapp2_extras.appengine.auth.models
-from webapp2_extras import security
 
 #constants
-message_type_to_target = 1
-message_type_to_giver = 2
-_DEFAULT_GIFT_EXCHANGE_NAME = 'playground'
+MESSAGE_TYPE_TO_TARGET = 1
+MESSAGE_TYPE_TO_GIVER = 2
+DEFAULT_GIFT_EXCHANGE_NAME = 'playground'
 _urlfinderregex = re.compile(r'http([^\.\s]+\.[^\.\s]*)+[^\.\s]{2,}')
 
 _JINJA_ENVIRONMENT = jinja2.Environment(
@@ -101,7 +102,7 @@ class BaseHandler(webapp2.RequestHandler):
         super(BaseHandler, self).__init__(*args, **kwargs)
         self._my_templates = {}
         self._my_templates['page_title'] =  'Gift Exchange Central' #set default page title
-        self._my_templates['is_admin_user'] = users.is_current_user_admin()
+        self._my_templates['is_admin_user'] = google_authentication.is_current_user_admin()
         self._my_templates['logout_url'] = '/logout'
         self._my_templates['logged_in_member'] = self.get_gift_exchange_member()
     
@@ -118,7 +119,7 @@ class BaseHandler(webapp2.RequestHandler):
     @webapp2.cached_property
     def auth(self):
         """Shortcut to access the auth instance as a property."""
-        return auth.get_auth()
+        return webapp2_extras.auth.get_auth()
     
     @webapp2.cached_property
     def user_info(self):
@@ -161,7 +162,7 @@ class BaseHandler(webapp2.RequestHandler):
     # this is needed for webapp2 sessions to work
     def dispatch(self):
         # Get a session store for this request.
-        self.session_store = sessions.get_store(request=self.request)
+        self.session_store = webapp2_extras.sessions.get_store(request=self.request)
 
         try:
             # Dispatch the request.
@@ -173,7 +174,7 @@ class BaseHandler(webapp2.RequestHandler):
     def get_gift_exchange_member(self):
         """Gets the member object associated with a particular session"""
         gift_exchange_member = None
-        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+        gift_exchange_key = get_gift_exchange_key(DEFAULT_GIFT_EXCHANGE_NAME)
         #first see if the user is in the DB
         auth = self.auth
         session_user = auth.get_user_by_session()
@@ -185,7 +186,7 @@ class BaseHandler(webapp2.RequestHandler):
                 pass
         if gift_exchange_member is None:
             try:
-                google_user = users.get_current_user()      
+                google_user = google_authentication.get_current_user()      
                 gift_exchange_member = GiftExchangeMember.update_and_retrieve_member_by_google_user(gift_exchange_key, google_user)
             except:
                 pass
@@ -199,7 +200,7 @@ class User(webapp2_extras.appengine.auth.models.User):
         :param raw_password:
             The raw password which will be hashed and stored
         """
-        self.password = security.generate_password_hash(raw_password, length=12)
+        self.password = webapp2_extras.security.generate_password_hash(raw_password, length=12)
 
     @classmethod
     def get_by_auth_token(cls, user_id, token, subject='auth'):
@@ -222,20 +223,50 @@ class User(webapp2_extras.appengine.auth.models.User):
             return user, timestamp
         return None, None
 
+class MemberEmail(ndb.Model):
+    email_address = ndb.StringProperty(indexed=False)
+    
+    @staticmethod
+    @ndb.transactional
+    def create_member_email(email):
+        key_string = ndb.Key(MemberEmail, email)
+        if key_string.get():
+            return None
+        email_object = MemberEmail(key=key_string, email_address=email)
+        email_object.put()
+        return email_object
+
 class GiftExchangeMember(ndb.Model):
     """A person that could be used in anonymous giving sessions"""
     google_user_id = ndb.StringProperty(indexed=True)
     first_name = ndb.StringProperty(indexed=False)
     last_name = ndb.StringProperty(indexed=False)
     user_key = ndb.KeyProperty(indexed=True, kind=User)
-    email = ndb.StringProperty(indexed=True)
+    email_address = ndb.StringProperty(indexed=True)
+    email_key = ndb.KeyProperty(indexed=True, kind=MemberEmail)
+    pending_email_key = ndb.KeyProperty(indexed=True, kind=MemberEmail)
     subscribed_to_updates = ndb.BooleanProperty(indexed=False, default=True)
+    verified_email = ndb.BooleanProperty(indexed=False, default=False)
+    
+    def get_email_address(self):
+        """Returns the member's email address"""
+        return self.email_address
+    
+    def verify_email_address(self):
+        if self.pending_email_key:
+            old_email_object_key = self.email_key
+            if old_email_object_key:
+                old_email_object_key.get().key.delete()
+            self.email_key = self.pending_email_key
+            self.pending_email_key = None
+            self.email_address = self.email_key.get().email_address
+            self.verified_email = True
+            self.put()
+        return
     
     def link_google_user(self, google_user):
         """Links a member to a particular google account"""
         self.google_user_id = google_user.user_id()
-        if self.email != google_user.email():
-            self.email = google_user.email()
         self.put()
     
     def unlink_google_user(self):
@@ -256,15 +287,16 @@ class GiftExchangeMember(ndb.Model):
         return query.get()
     
     @staticmethod
-    def create_member_by_native_user(gift_exchange_key, user, email):
+    def create_member_by_native_user(gift_exchange_key, user, email_object, first_name, last_name):
         """Create a member based off a native user account"""
         member = GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user.key)
         if member is None:
             member = GiftExchangeMember(parent=gift_exchange_key, 
                                         user_key=user.key,
-                                        first_name=user.name,
-                                        last_name=user.last_name, 
-                                        email=email)
+                                        first_name=first_name,
+                                        last_name=last_name, 
+                                        pending_email_key=email_object.key,
+                                        email_address = email_object.email_address)
             member.put()
         return member
     
@@ -277,7 +309,8 @@ class GiftExchangeMember(ndb.Model):
                                         google_user_id=google_user.user_id(),
                                         first_name=first_name,
                                         last_name=last_name, 
-                                        email=google_user.email())
+                                        email_address=google_user.email(),
+                                        verified_email=True)
             member.put()
         return member
     
@@ -287,8 +320,8 @@ class GiftExchangeMember(ndb.Model):
                 It will not create any users"""
         member = GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id())
         if member is not None:
-            if member.email != google_user.email():
-                member.email = google_user.email()
+            if member.email_address != google_user.email():
+                member.email_address = google_user.email()
                 member.put()
         return member
     
@@ -296,7 +329,7 @@ class GiftExchangeMember(ndb.Model):
     def get_member_by_email(gift_exchange_key, email):
         """Gets a member by their email address. References to emails shouldn't be stored, but are
             useful for display in UIs, so it should only be for using as a public facing intermediary"""
-        query = GiftExchangeMember.query(GiftExchangeMember.email==email, ancestor=gift_exchange_key)
+        query = GiftExchangeMember.query(GiftExchangeMember.email_address==email, ancestor=gift_exchange_key)
         return query.get()
     
     @staticmethod
@@ -396,7 +429,7 @@ class GiftExchangeMessage(ndb.Model):
     
     def get_formatted_time_sent(self):
         """Returns a nicely formatted time sent"""
-        central_time = self.time_sent + timedelta(hours=-6)
+        central_time = self.time_sent + datetime.timedelta(hours=-6)
         return central_time.strftime('%B %d, %Y %I:%M %p')
     
     def get_escaped_content(self):
@@ -421,11 +454,11 @@ class GiftExchangeMessage(ndb.Model):
                             ndb.OR(
                                 ndb.AND(
                                     GiftExchangeMessage.sender_key==giving_participant.key,
-                                    GiftExchangeMessage.message_type==message_type_to_target
+                                    GiftExchangeMessage.message_type==MESSAGE_TYPE_TO_TARGET
                                     ), 
                                 ndb.AND(
                                     GiftExchangeMessage.sender_key==target_participant.key, 
-                                    GiftExchangeMessage.message_type==message_type_to_giver
+                                    GiftExchangeMessage.message_type==MESSAGE_TYPE_TO_GIVER
                                     )
                                 ),
                             ancestor=gift_exchange_key).order(-GiftExchangeMessage.time_sent)
