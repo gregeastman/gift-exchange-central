@@ -253,6 +253,7 @@ class GiftExchangeMember(ndb.Model):
         return self.email_address
     
     def verify_email_address(self):
+        """Verifies a user's email address"""
         if self.pending_email_key:
             old_email_object_key = self.email_key
             if old_email_object_key:
@@ -377,11 +378,11 @@ class GiftExchangeParticipant(ndb.Model):
         participant_member = self.member_key.get()
         return (participant_member.key == gift_exchange_member.key)
     
-    def get_giver(self):
+    def get_giver(self, allow_unknown=False):
         """Gets the participant name who is giving to this participant, if that person knows"""
         query = GiftExchangeParticipant.query(GiftExchangeParticipant.target==self.display_name, GiftExchangeParticipant.event_key==self.event_key)
         giver = query.get()
-        if giver.is_target_known:
+        if giver.is_target_known or allow_unknown:
             return giver
         return None
     

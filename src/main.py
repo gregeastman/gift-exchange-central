@@ -107,17 +107,17 @@ class LoginHandler(MainWebAppHandler):
         password = self.request.get('password')
         failure_message = 'Username/password was not found'
         try:
-            session_user = self.auth.get_user_by_password(username, password, remember=True,
+            self.auth.get_user_by_password(username, password, remember=True,
                                                save_session=True)
-            user_object = datamodel.User.get_by_id(session_user['user_id'])
-            gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user_object.key)
-            if not member.verified_email: #require user to be verified to login
-                self.auth.unset_session()
-                failure_message = 'User is not yet validated. Check your email for a link to validate your account.'
-            else:
-                self.redirect(self.uri_for('home'))
-                return
+            #user_object = datamodel.User.get_by_id(session_user['user_id'])
+            #gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            #member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user_object.key)
+            #if not member.verified_email: #require user to be verified to login
+            #    self.auth.unset_session()
+            #    failure_message = 'User is not yet validated. Check your email for a link to validate your account.'
+            #else:
+            self.redirect(self.uri_for('home'))
+            return
         except (webapp2_extras.auth.InvalidAuthIdError, webapp2_extras.auth.InvalidPasswordError) as e:
             logging.info('Login failed for user %s because of %s', username, type(e))
         self.add_template_values({'username': username, 'failure_message': failure_message})
@@ -398,7 +398,7 @@ class MainHandler(MainWebAppHandler):
             target_messages = query.fetch(_DEFAULT_MAX_RESULTS)
             for idea in target_participant.idea_list:
                 target_idea_list.append(free_text_to_safe_html_markup(idea, 60))           
-        giver = gift_exchange_participant.get_giver()
+        giver = gift_exchange_participant.get_giver(True)
         if giver:
             query = datamodel.GiftExchangeMessage.get_message_exchange_query(gift_exchange_key, giver, gift_exchange_participant)
             giver_messages = query.fetch(_DEFAULT_MAX_RESULTS)
@@ -475,7 +475,7 @@ class PreferencesHandler(MainWebAppHandler):
     @member_required
     def post(self):
         """Handles posts requests for updating preferences. Requires a JSON object."""
-        #TODO: update client to show email message
+        refresh = ''
         data = json.loads(self.request.body)
         member_is_dirty = False
         member = self.get_gift_exchange_member()
@@ -496,19 +496,28 @@ class PreferencesHandler(MainWebAppHandler):
             self.response.out.write(json.dumps(({'message': 'Email cannot be blank'})))
             return
         email_object = None
-        if member.get_email_address() != email:
+        if (member.get_email_address() != email) or (member.pending_email_key is not None):
             #The UI doesn't allow a change, but if the user is a google user, this can temporarily change the email
             #That doesn't really matter, since it will be reset    
-            try:
-                email_object = datamodel.MemberEmail.create_member_email(email)
-            except:
-                email_object = None
-            if email_object is None:
-                self.response.out.write(json.dumps(({'message': 'Email is already in use'})))
-                return
+            if member.get_email_address() != email:
+                #This is also slightly weird when there's a pending email change, but that should be unlikely, and the behavior is not "wrong"
+                #If I keep the existing address, it will clear the pending update
+                #If I change to pending address, it will throw an error
+                #If I put in a new address, it will work as expected
+                try:
+                    email_object = datamodel.MemberEmail.create_member_email(email)
+                except:
+                    email_object = None
+                if email_object is None:
+                    self.response.out.write(json.dumps(({'message': 'Email is already in use'})))
+                    return
+            else:
+                refresh = '1' #if updating with pending email, simply clear out pending key
             #clean up old pending key
             if member.pending_email_key:
                 member.pending_email_key.get().key.delete()
+                member.pending_email_key = None
+                member_is_dirty = True
         if member.subscribed_to_updates != subscribed_to_updates:
             member.subscribed_to_updates = subscribed_to_updates
             member_is_dirty = True
@@ -528,6 +537,7 @@ class PreferencesHandler(MainWebAppHandler):
             member.pending_email_key = email_object.key
             member_is_dirty = True
             user_id = member.user_key.id()
+            refresh = '1'
             token = self.user_model.create_signup_token(user_id)
         
             verification_url = self.uri_for('verification', type='v', user_id=user_id,
@@ -539,7 +549,7 @@ class PreferencesHandler(MainWebAppHandler):
             
         if member_is_dirty:
             member.put()
-        self.response.out.write(json.dumps(({'message': ''})))
+        self.response.out.write(json.dumps(({'message': '', 'refresh': refresh})))
 
 class GoogleLinkHandler(MainWebAppHandler):
     """Class for handling linking and unlinking google accounts"""
@@ -615,15 +625,15 @@ class MessageHandler(MainWebAppHandler):
                                                                                 gift_exchange_key, 
                                                                                 gift_exchange_participant.target,
                                                                                 gift_exchange_participant.event_key)
-                if target_participant.get_member().get_email_address():
-                    message = 'Message successfully sent'
+                if target_participant.get_member().get_email_address() and target_participant.get_member().verified_email:
                     send_email_helper(target_participant.display_name, target_participant.get_member().get_email_address(), 'Your Secret Santa Has Sent You A Message', email_body, None)
+                message = 'Message successfully sent'
                 datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_TARGET, email_body)
             elif message_type == 'giver':
                 giver = gift_exchange_participant.get_giver()
                 message = 'Message successfully sent'
                 if giver is not None:
-                    if giver.get_member().get_email_address():
+                    if giver.get_member().get_email_address() and giver.get_member().verified_email:
                         send_email_helper(giver.display_name, giver.get_member().get_email_address(), gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
                 datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_GIVER, email_body)
         self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))

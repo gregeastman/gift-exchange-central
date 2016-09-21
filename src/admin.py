@@ -122,7 +122,7 @@ class EventHandler(AdminWebAppHandler):
                 'has_started': has_started,
                 'has_ended': has_ended,
                 'money_limit': money_limit,
-                'participant_list': participant_list,
+                'participant_list': participant_list, #TODO: put in better selector, and probably default names
                 'member_list': member_list,
                 'page_title': 'Edit an event',
             }
@@ -138,7 +138,7 @@ class EventHandler(AdminWebAppHandler):
             participant_list = query.fetch(_DEFAULT_MAX_RESULTS)
             for participant in participant_list:
                 if participant.display_name in name_index:
-                    if ((participant.get_member().email != name_index[participant.display_name][0]) 
+                    if ((participant.get_member().email_address != name_index[participant.display_name][0]) 
                             or (participant.family != name_index[participant.display_name][1])):
                         participant.key.delete()
                 else:
@@ -179,7 +179,6 @@ class EventHandler(AdminWebAppHandler):
         gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         message = 'Event Updated Successfully'
         event = self.get_event(*args, **kwargs)
-        event_string = data['event']
         needs_saving = False
         event_display_name = data['event_display_name']
         money_limit = data['money_limit']
@@ -189,8 +188,6 @@ class EventHandler(AdminWebAppHandler):
             if event is None:
                 event = datamodel.GiftExchangeEvent(parent=gift_exchange_key)
                 needs_saving = True
-            else:
-                event_key = event.key
             if event.display_name != event_display_name:
                 event.display_name = event_display_name
                 needs_saving = True
@@ -200,13 +197,11 @@ class EventHandler(AdminWebAppHandler):
                     needs_saving = True
             if needs_saving:
                 event.put()
-                event_string = event.key.urlsafe()
-                event_key = event.key
             if not event.has_started: #maybe should return a message, but UI handles it
-                error_message = _save_participants(gift_exchange_key, event_key, data['participant_list'])
+                error_message = _save_participants(gift_exchange_key, event.key, data['participant_list'])
                 if error_message:
                     message = error_message
-        self.response.out.write(json.dumps(({'message': message, 'event_string': event_string, 'money_limit': event.money_limit})))
+        self.response.out.write(json.dumps(({'message': message, 'event_string': event.key.urlsafe(), 'money_limit': event.money_limit})))
     
 class DeleteHandler(AdminWebAppHandler):
     """Handles requests for deleting an event, including all participants associated with the event"""
@@ -369,6 +364,7 @@ config = {
 
 app = webapp2.WSGIApplication([
     webapp2.Route('/admin/', HomeHandler, name='home'),
+    webapp2.Route('/admin/event/', handler=EventHandler),
     webapp2.Route('/admin/event/<event:.+>', handler=EventHandler, name='event'),
     webapp2.Route('/admin/inherit/<event:.+>', handler=InheritHandler),
     webapp2.Route('/admin/statuschange/<event:.+>', handler=StatusChangeHandler),

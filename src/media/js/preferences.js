@@ -17,6 +17,11 @@ function update_preferences()
       })
     })
     .done(function( data ) {
+    	if (data["refresh"] === "1")
+    	{
+    		window.location.reload();
+    		return;
+    	}
     	if (data["message"])
     	{
     		$("#span_error_message").text(data["message"]);
