@@ -121,6 +121,17 @@ class LoginHandler(MainWebAppHandler):
             return
         except (webapp2_extras.auth.InvalidAuthIdError, webapp2_extras.auth.InvalidPasswordError) as e:
             logging.info('Login failed for user %s because of %s', username, type(e))
+        if username.find('@') != -1:
+            gift_exchange_key = datamodel.get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
+            member = datamodel.GiftExchangeMember.get_member_by_email(gift_exchange_key, username)
+            if member is not None and member.verified_email and member.user_key:
+                login_string = member.user_key.get().auth_ids[0]
+                try:
+                    self.auth.get_user_by_password(login_string, password, remember=True, save_session=True)
+                    self.redirect(self.uri_for('home'))
+                    return
+                except (webapp2_extras.auth.InvalidAuthIdError, webapp2_extras.auth.InvalidPasswordError) as e:
+                    logging.info('Login failed for user %s because of %s', login_string, type(e))
         self.add_template_values({'username': username, 'failure_message': failure_message})
         self.render_template('login.html')
 
