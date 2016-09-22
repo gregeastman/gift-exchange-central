@@ -27,8 +27,9 @@ import google.appengine.api.mail
 #Includes specified by the app.yaml
 import webapp2
 import webapp2_extras.auth
-#import webapp2_extras.auth.InvalidAuthIdError
-#import webapp2_extras.auth.InvalidPasswordError
+
+#Included third party libraries distributed with the project
+import bleach
 
 #App specific includes
 import datamodel
@@ -610,15 +611,15 @@ class MessageHandler(MainWebAppHandler):
     def post(self, *args, **kwargs):
         """Handles posts requests for the message class. Will send an email to the target. Requires a JSON object"""
         data = json.loads(self.request.body)
-        #TODO: update client to refresh messages when sending
-        message = 'Could not send message'
+        display_message = 'Could not send message'
         gift_exchange_participant = self.get_participant(*args, **kwargs)
         participant_key = gift_exchange_participant.key.urlsafe()
         gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         message_type = data['message_type']
         email_body = data['email_body']
+        message = None
         if not email_body:
-            message = 'Nothing to send'
+            display_message = 'Nothing to send'
         else:
             if message_type == 'target':
                 target_participant = datamodel.GiftExchangeParticipant.get_participant_by_name(
@@ -627,16 +628,28 @@ class MessageHandler(MainWebAppHandler):
                                                                                 gift_exchange_participant.event_key)
                 if target_participant.get_member().get_email_address() and target_participant.get_member().verified_email:
                     send_email_helper(target_participant.display_name, target_participant.get_member().get_email_address(), 'Your Secret Santa Has Sent You A Message', email_body, None)
-                message = 'Message successfully sent'
-                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_TARGET, email_body)
+                display_message = ''
+                message = datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_TARGET, email_body)
             elif message_type == 'giver':
                 giver = gift_exchange_participant.get_giver()
-                message = 'Message successfully sent'
+                display_message = ''
                 if giver is not None:
                     if giver.get_member().get_email_address() and giver.get_member().verified_email:
                         send_email_helper(giver.display_name, giver.get_member().get_email_address(), gift_exchange_participant.display_name + ' Has Sent You A Message', email_body, None)
-                datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_GIVER, email_body)
-        self.response.out.write(json.dumps(({'message': message, 'gift_exchange_participant_key': participant_key})))
+                message = datamodel.GiftExchangeMessage.create_message(gift_exchange_key, gift_exchange_participant.key, _MESSAGE_TYPE_TO_GIVER, email_body)
+        return_value = {'message': display_message, 'gift_exchange_participant_key': participant_key}
+        if message is not None:
+            return_value['message_key'] = message.key.urlsafe()
+            return_value['message_full'] = message.get_escaped_content()
+            return_value['sender'] = bleach.clean(gift_exchange_participant.display_name)
+            if message_type == 'target':
+                return_value['recipient'] = bleach.clean(target_participant.display_name)
+            elif message_type == 'giver':
+                return_value['recipient'] = 'Santa'
+            return_value['message_type'] = 'Sent'
+            return_value['time'] = bleach.clean(message.get_formatted_time_sent())
+            return_value['message_truncated'] = bleach.clean(message.content)[0:80]
+        self.response.out.write(json.dumps((return_value)))
 
 
 config = {

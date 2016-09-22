@@ -51,7 +51,6 @@ function delete_row_helper(par)
 	par.remove();
 }
 
-
 function save_row_helper(par) 
 {
 	var td_ideas = par.children("td:nth-child(1)");
@@ -140,7 +139,6 @@ function send_to_target()
 function send_target_message()
 {
 	send_message($("#txt_target_email_body").val(), "target");
-	//TODO: consider updating table of messages
 	close_target_message();
 }
 
@@ -163,7 +161,6 @@ function send_to_giver()
 function send_giver_message()
 {
 	send_message($("#txt_giver_email_body").val(), "giver");
-	//TODO: consider updating table of messages
 	close_giver_message();
 }
 
@@ -192,7 +189,37 @@ function send_message(message_body, type)
         })
       })
       .done(function( data ) {
-    	  set_temporary_message("#span_status_message", data["message"]);
+    	  if (data["message"])
+    	  {
+    		  //consider making permanent, since this is an erro
+    		  set_temporary_message("#span_status_message", data["message"]);
+
+    	  }
+    	  else
+    	  {
+    		  set_temporary_message("#span_status_message", "Message successfully sent.");
+	    	  var table_selector = "#tbl_target_messages tbody";
+	    	  var header_selector = "#hdr_target_no_messages";
+	    	  if (type === "giver")
+	    	  {
+	    		  table_selector = "#tbl_giver_messages tbody";  
+	    		  header_selector = "#hdr_giver_no_messages";
+	    	  }
+	    	  $(header_selector).hide();
+	    	  $(table_selector).show();
+	    	  var new_row = "<tr class=\"tr_link\">" +
+				"<td style=\"display:none;\">" + data["message_key"] + "</td>" +
+				"<td style=\"display:none;\">" + data["message_full"] + "</td>" +
+				"<td style=\"display:none;\">" + data["sender"] + "</td>" +
+				"<td style=\"display:none;\">" + data["recipient"] + "</td>" +
+				"<td width=\"75px\">" + data["message_type"] + "</td>" +
+				"<td width=\"240px\">" + data["time"] + "</td>" +
+				"<td>" + data["message_truncated"] + "</td>" +
+				"</tr>"
+	    	  $(table_selector).prepend(new_row);
+	    	  $("#tbl_target_messages tr, #tbl_giver_messages tr").click(show_message);
+	    				
+    	  }
       });
 }
 

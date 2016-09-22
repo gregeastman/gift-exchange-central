@@ -20,8 +20,7 @@
 				<input type="button" onclick="javascript:cancel_target_message()" value="Cancel" />
         	</div>
         	<br /><br />
-			{% if target_messages|length > 0 %}
-			<table id="tbl_target_messages" class="messages">
+			<table id="tbl_target_messages" class="messages" {% if target_messages|length <= 0 %}style="display:none;" {% endif %}>
 				<tbody>
 				{% for message in target_messages %}
 					<tr class="tr_link">
@@ -42,9 +41,7 @@
 				{% endfor %}
 				</tbody>
 			</table>
-			{% else %}
-			<h4>You haven't exchanged any messages with {{ gift_exchange_participant.target }} yet.</h4>
-			{% endif %}
+			<h4 id="hdr_target_no_messages" {% if target_messages|length > 0 %}style="display:none;" {% endif %}>You haven't exchanged any messages with {{ gift_exchange_participant.target }} yet.</h4>
 		{% endif %}
 		<h2>Messages With Santa</h2>
 		<span><a href="#" onclick="javascript:send_to_giver();">Send a message to Santa</a></span>
@@ -54,8 +51,7 @@
 			<input type="button" onclick="javascript:cancel_giver_message()" value="Cancel" />
        	</div>
        	<br /><br />
-		{% if giver_messages|length > 0 %}
-		<table id="tbl_giver_messages" class="messages">
+		<table id="tbl_giver_messages" class="messages" {% if giver_messages|length <= 0 %}style="display:none;" {% endif %}>
 			<tbody>
 			{% for message in giver_messages %}
 				<tr class="tr_link">
@@ -76,9 +72,7 @@
 			{% endfor %}
 			</tbody>
 		</table>
-		{% else %}
-		<h4>You haven't exchanged any messages with Santa yet.</h4>
-		{% endif %}
+		<h4 id="hdr_giver_no_messages" {% if giver_messages|length > 0 %}style="display:none;" {% endif %}>You haven't exchanged any messages with Santa yet.</h4>
 		
 		<div id="div_modal_background"></div>
 		<div id="div_modal_content">

@@ -19,6 +19,7 @@
 import datetime
 import os
 import time
+import re
 
 #Natively provided by app engine
 import google.appengine.ext.ndb as ndb
@@ -33,7 +34,6 @@ import webapp2_extras.appengine.auth.models
 import webapp2_extras.security
 
 #Included third party libraries distributed with the project
-import re
 import bleach
 
 
