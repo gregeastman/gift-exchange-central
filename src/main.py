@@ -108,15 +108,7 @@ class LoginHandler(MainWebAppHandler):
         password = self.request.get('password')
         failure_message = 'Username/password was not found'
         try:
-            self.auth.get_user_by_password(username, password, remember=True,
-                                               save_session=True)
-            #user_object = datamodel.User.get_by_id(session_user['user_id'])
-            #gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
-            #member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user_object.key)
-            #if not member.verified_email: #require user to be verified to login
-            #    self.auth.unset_session()
-            #    failure_message = 'User is not yet validated. Check your email for a link to validate your account.'
-            #else:
+            self.auth.get_user_by_password(username, password, remember=True, save_session=True)
             self.redirect(self.uri_for('home'))
             return
         except (webapp2_extras.auth.InvalidAuthIdError, webapp2_extras.auth.InvalidPasswordError) as e:
@@ -214,26 +206,17 @@ class SignupHandler(MainWebAppHandler):
                 return
             email_object = None
             try:
-                email_object = datamodel.MemberEmail.create_member_email(email)
+                email_object = datamodel.UserUnique.create_unique_value('email', email)
             except:
                 email_object = None
             if not email_object:
                 self.response.out.write(json.dumps(({'message': 'Email address already exists'})))
                 return
-            #unique_properties = ['email_address']
-            #user_data = self.user_model.create_user(user_name,
-            #  unique_properties,
-            #  email_address=email, name=name, password_raw=password,
-            #  last_name=lastname, verified=False)
             user_data = self.user_model.create_user(user_name, name=name, password_raw=password)
             if not user_data[0]: #user_data is a tuple
                 msg = ''
                 if 'auth_id' in user_data[1]:
                     msg = 'Username already exists: ' + user_name
-                #if 'email_address' in user_data[1]:
-                #    if msg:
-                #        msg = msg + '\n'
-                #    msg = msg + 'Email address already exists: ' + email
                 email_object.key.delete() #clean up object
                 self.response.out.write(json.dumps(({'message': msg})))
                 return
@@ -258,10 +241,15 @@ class SignupHandler(MainWebAppHandler):
             if google_user is None:
                 self.response.out.write(json.dumps(({'message': 'Cannot create google user when not logged in.'})))
                 return
-            if datamodel.GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id()) is not None:
+            google_user_object = None
+            try:
+                google_user_object = datamodel.UserUnique.create_unique_value('google', google_user.user_id())
+            except:
+                google_user_object = None
+            if not google_user_object:
                 self.response.out.write(json.dumps(({'message': 'User already exists with this account.'})))
                 return
-            datamodel.GiftExchangeMember.create_member_by_google_user(gift_exchange_key, google_user, name, lastname)
+            datamodel.GiftExchangeMember.create_member_by_google_user(gift_exchange_key, google_user_object, name, lastname, google_user.email())
             self.response.out.write(json.dumps(({'message': ''})))
             return
         self.response.out.write(json.dumps(({'message': 'Unknown error'})))
@@ -517,7 +505,7 @@ class PreferencesHandler(MainWebAppHandler):
                 #If I change to pending address, it will throw an error
                 #If I put in a new address, it will work as expected
                 try:
-                    email_object = datamodel.MemberEmail.create_member_email(email)
+                    email_object = datamodel.UserUnique.create_unique_value('email', email)
                 except:
                     email_object = None
                 if email_object is None:
@@ -572,15 +560,19 @@ class GoogleLinkHandler(MainWebAppHandler):
         change_type = data['type']
         member = self.get_gift_exchange_member(*args, **kwargs)
         if change_type == 'link':
-            gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
             google_user = google_authentication.get_current_user()
             if not google_user:
                 self.response.write(json.dumps(({'message': 'Must be logged into Google to link account.'})))
                 return
-            if datamodel.GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id()):
-                self.response.write(json.dumps(({'message': 'Cannot link Google account because it is already linked to another user.'})))
+            google_user_object = None
+            try:
+                google_user_object = datamodel.UserUnique.create_unique_value('google', google_user.user_id())
+            except:
+                google_user_object = None
+            if not google_user_object:
+                self.response.out.write(json.dumps(({'message': 'Cannot link Google account because it is already linked to another user.'})))
                 return
-            member.link_google_user(google_user)
+            member.link_google_user(google_user_object)
             self.response.write(json.dumps(({'message': ''})))
             return
         elif change_type == 'unlink':

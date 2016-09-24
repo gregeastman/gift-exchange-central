@@ -32,11 +32,11 @@
 			<tbody>
 				<tr><td><label for="txt_name">First Name</label></td><td><input type="text" id="txt_name" value="{{ member.first_name }}" /></td></tr>
 				<tr><td><label for="txt_lastname">Last Name</label></td><td><input type="text" id="txt_lastname" value="{{ member.last_name }}" /></td></tr>
-	 			<tr><td><label for="txt_email">Email</label></td><td><input type="text" id="txt_email" value="{{ member.get_email_address() }}" {% if member.google_user_id %}style="background-color: #DFD8D1" disabled{% endif %} /></td></tr>
+	 			<tr><td><label for="txt_email">Email</label></td><td><input type="text" id="txt_email" value="{{ member.get_email_address() }}" {% if not member.user_key %}style="background-color: #DFD8D1" disabled{% endif %} /></td></tr>
 			</tbody>
 		</table>
 		{% if member.pending_email_key %}
-		<span style="font-style: italic;">There is a pending change to update the email address to {{ member.pending_email_key.get().email_address }}. Check your email to update to the new email address.</span><br />
+		<span style="font-style: italic;">There is a pending change to update the email address to {{ member.pending_email_key.get().property_value }}. Check your email to update to the new email address.</span><br />
 		{% endif %}
 		<input type="checkbox" id="chk_is_subscribed" {% if member.subscribed_to_updates %} checked{% endif %}>Receive an email when wish list is updated.</input>
 	</div>

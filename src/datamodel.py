@@ -223,28 +223,34 @@ class User(webapp2_extras.appengine.auth.models.User):
             return user, timestamp
         return None, None
 
-class MemberEmail(ndb.Model):
-    email_address = ndb.StringProperty(indexed=False)
+class UserUnique(ndb.Model):
+    property_type = ndb.StringProperty(indexed=False)
+    property_value = ndb.StringProperty(indexed=False)
     
     @staticmethod
     @ndb.transactional
-    def create_member_email(email):
-        key_string = ndb.Key(MemberEmail, email)
+    def create_unique_value(value_type, value):
+        key_string = ndb.Key(UserUnique, value_type + ":" + value)
         if key_string.get():
             return None
-        email_object = MemberEmail(key=key_string, email_address=email)
-        email_object.put()
-        return email_object
+        unique_object = UserUnique(key=key_string, property_type=value_type, property_value=value)
+        unique_object.put()
+        return unique_object
 
 class GiftExchangeMember(ndb.Model):
     """A person that could be used in anonymous giving sessions"""
+    google_user_key = ndb.KeyProperty(indexed=True, kind=UserUnique)
     google_user_id = ndb.StringProperty(indexed=True)
     first_name = ndb.StringProperty(indexed=False)
     last_name = ndb.StringProperty(indexed=False)
     user_key = ndb.KeyProperty(indexed=True, kind=User)
+    
+    #This represents the address to send to. It's the verified email if there is one
+    #If there is no native user, it's the google email
+    #If the user hasn't verified their initial email, it will still be set
     email_address = ndb.StringProperty(indexed=True)
-    email_key = ndb.KeyProperty(indexed=True, kind=MemberEmail)
-    pending_email_key = ndb.KeyProperty(indexed=True, kind=MemberEmail)
+    email_key = ndb.KeyProperty(indexed=True, kind=UserUnique)
+    pending_email_key = ndb.KeyProperty(indexed=True, kind=UserUnique)
     subscribed_to_updates = ndb.BooleanProperty(indexed=False, default=True)
     verified_email = ndb.BooleanProperty(indexed=False, default=False)
     
@@ -260,18 +266,24 @@ class GiftExchangeMember(ndb.Model):
                 old_email_object_key.get().key.delete()
             self.email_key = self.pending_email_key
             self.pending_email_key = None
-            self.email_address = self.email_key.get().email_address
+            self.email_address = self.email_key.get().property_value
             self.verified_email = True
             self.put()
         return
     
-    def link_google_user(self, google_user):
+    def link_google_user(self, google_user_object):
         """Links a member to a particular google account"""
-        self.google_user_id = google_user.user_id()
+        self.google_user_key = google_user_object.key
+        self.google_user_id = google_user_object.property_value
         self.put()
     
     def unlink_google_user(self):
         """Deletes the link to a particular google account"""
+        #Consider verifying that there's a native user
+        google_user_object_key = self.google_user_key
+        if google_user_object_key:
+            google_user_object_key.get().key.delete()
+        self.google_user_key = None
         self.google_user_id = None
         self.put()
     
@@ -297,20 +309,22 @@ class GiftExchangeMember(ndb.Model):
                                         first_name=first_name,
                                         last_name=last_name, 
                                         pending_email_key=email_object.key,
-                                        email_address = email_object.email_address)
+                                        email_address = email_object.property_value)
             member.put()
         return member
     
     @staticmethod
-    def create_member_by_google_user(gift_exchange_key, google_user, first_name, last_name):
+    def create_member_by_google_user(gift_exchange_key, google_user_object, first_name, last_name, email):
         """Create a member based off a google account and some minimal extra information"""
-        member = GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id())
+        member = GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user_object.property_value)
+        #Consider validating google_user and google_user_object aren't null
         if member is None:
             member = GiftExchangeMember(parent=gift_exchange_key, 
-                                        google_user_id=google_user.user_id(),
+                                        google_user_id=google_user_object.property_value,
+                                        google_user_key=google_user_object.key,
                                         first_name=first_name,
                                         last_name=last_name, 
-                                        email_address=google_user.email(),
+                                        email_address=email,
                                         verified_email=True)
             member.put()
         return member
@@ -321,9 +335,10 @@ class GiftExchangeMember(ndb.Model):
                 It will not create any users"""
         member = GiftExchangeMember.get_member_by_google_id(gift_exchange_key, google_user.user_id())
         if member is not None:
-            if member.email_address != google_user.email():
-                member.email_address = google_user.email()
-                member.put()
+            if member.user_key is None: #only update email address if google is the only source
+                if member.email_address != google_user.email():
+                    member.email_address = google_user.email()
+                    member.put()
         return member
     
     @staticmethod
