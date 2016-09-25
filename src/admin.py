@@ -98,6 +98,7 @@ class EventHandler(AdminWebAppHandler):
     @member_required
     def get(self, *args, **kwargs):
         """Handles get requests to the page that shows an administrative view of an event"""
+        #TODO: add javascript validation
         event_string =''
         event = self.get_event(*args, **kwargs)
         event_display_name = _DEFAULT_DISPLAY_NAME

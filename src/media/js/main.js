@@ -206,7 +206,7 @@ function send_message(message_body, type)
 	    		  header_selector = "#hdr_giver_no_messages";
 	    	  }
 	    	  $(header_selector).hide();
-	    	  $(table_selector).show();
+	    	  $(table_selector.split(" ")[0]).show();
 	    	  var new_row = "<tr class=\"tr_link\">" +
 				"<td style=\"display:none;\">" + data["message_key"] + "</td>" +
 				"<td style=\"display:none;\">" + data["message_full"] + "</td>" +
@@ -272,4 +272,5 @@ $(function()
 	//$("#btn_add_idea").bind("click", add_row);
 	$("#tbl_target_messages tr, #tbl_giver_messages tr").click(show_message);
     $("#div_modal_background, #btn_message_close").click(hide_background);
+    toggle_target(); //show target by default
 });
