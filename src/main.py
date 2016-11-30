@@ -335,8 +335,14 @@ class ForgotPasswordHandler(MainWebAppHandler):
         """Handles the request for a user forgetting their password and send an email with verification"""
         data = json.loads(self.request.body)
         username = data['username']
+        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         user = self.user_model.get_by_auth_id(username)
         if not user:
+            if username.find('@') != -1:
+                temp_member = datamodel.GiftExchangeMember.get_member_by_email(gift_exchange_key, username)
+                if temp_member is not None and temp_member.verified_email and temp_member.user_key:
+                    user = temp_member.user_key.get()
+        if not user:    
             msg = 'Could not find any user entry for username %s', username
             logging.info(msg)
             self.response.out.write(json.dumps(({'message': msg})))
@@ -350,7 +356,6 @@ class ForgotPasswordHandler(MainWebAppHandler):
     
         message_content = 'You have signed up for a new account at Gift Exchange Central: ' + self.uri_for('root')
         message_content = message_content + 'Verify your account at ' + verification_url
-        gift_exchange_key = get_gift_exchange_key(_DEFAULT_GIFT_EXCHANGE_NAME)
         member = datamodel.GiftExchangeMember.get_member_by_user_key(gift_exchange_key, user.key)
         send_email_helper(member.first_name, member.get_email_address(), 'Password Reset for Gift Exchange Central', message_content, None)
         self.response.out.write(json.dumps(({'message': ''})))
