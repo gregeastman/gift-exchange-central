@@ -443,9 +443,6 @@ class UpdateHandler(MainWebAppHandler):
                     for idea in idea_list:
                         body = body + idea + '\n'
                     #Given that ideas are updated on every save, would only want to send message on navigating away from page
-                    #email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update'
-                    #unsubscribe_link = self.uri_for('unsubscribe') + '?gift_exchange_member=' + member.key.urlsafe()
-                    #send_email_helper(giver.display_name, member.get_email_address(), email_subject, body, unsubscribe_link)
         self.response.out.write(json.dumps(({'message': message})))
         
 class AssignmentHandler(MainWebAppHandler):
@@ -659,6 +656,29 @@ class MessageHandler(MainWebAppHandler):
             return_value['message_truncated'] = bleach.clean(message.content)[0:80]
         self.response.out.write(json.dumps((return_value)))
 
+class BroadcastHandler(MainWebAppHandler):
+    """Class that handles updates to the participant's ideas"""
+    @member_required
+    @participant_required
+    def post(self, *args, **kwargs):
+        """This handles post requests. Requires a JSON object"""
+        message = '' #always consider this a success
+        gift_exchange_participant = self.get_participant(*args, **kwargs)
+        if gift_exchange_participant is not None:
+            idea_list = gift_exchange_participant.idea_list
+            giver = gift_exchange_participant.get_giver()
+            if giver is not None:
+                member = giver.get_member()
+                if member.get_email_address() and member.subscribed_to_updates:
+                    body = gift_exchange_participant.display_name + ' has updated their profile with new ideas for '
+                    body = body + gift_exchange_participant.get_event().display_name
+                    body = body + '\n\n'
+                    for idea in idea_list:
+                        body = body + idea + '\n'
+                    email_subject = gift_exchange_participant.get_event().display_name + ' Gift Idea Update'
+                    unsubscribe_link = self.uri_for('unsubscribe') + '?gift_exchange_member=' + member.key.urlsafe()
+                    send_email_helper(giver.display_name, member.get_email_address(), email_subject, body, unsubscribe_link)
+        self.response.out.write(json.dumps(({'message': message})))
 
 config = {
   'webapp2_extras.auth': {
@@ -686,6 +706,7 @@ app = webapp2.WSGIApplication([
     webapp2.Route('/preferences', handler=PreferencesHandler, name='preferences'),
     webapp2.Route('/message/<participant:.+>', handler=MessageHandler),
     webapp2.Route('/update/<participant:.+>', handler=UpdateHandler),
+    webapp2.Route('/broadcast/<participant:.+>', handler=BroadcastHandler),
     webapp2.Route('/unsubscribe', handler=UnsubscribeHandler, name="unsubscribe"),
     webapp2.Route('/assign/<participant:.+>', handler=AssignmentHandler)
 ], debug=False, config=config)

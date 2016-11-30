@@ -109,6 +109,7 @@ function update_ideas()
         })
       })
       .done(function( data ) {
+    	  g_needs_update_email = true;
     	  //set_temporary_message("#span_status_message", data["message"])
       });
 }
@@ -264,6 +265,29 @@ function toggle_giver()
 	$("#div_giver").toggle();
 }
 
+function send_notification_email()
+{
+	if (g_needs_update_email)
+	{
+		$.ajax({
+	        type: "POST",
+	        url: "/broadcast/" + $("#txt_gift_exchange_participant").val(),
+	        dataType: "json",
+	        data: JSON.stringify(
+	      	{ 
+	      	  //"gift_exchange_participant": $("#txt_gift_exchange_participant").val()
+	        })
+	      })
+	      .done(function( data ) {
+	    	  //window.location.reload();
+	    	  //could avoid the reload, but would also have to send up the ideas
+	    	  //target = data["target"];
+	      });
+	}
+}
+
+var g_needs_update_email = false;
+
 $(function()
 {
 	//Add, Save, Edit and Delete functions code
@@ -273,4 +297,5 @@ $(function()
 	$("#tbl_target_messages tr, #tbl_giver_messages tr").click(show_message);
     $("#div_modal_background, #btn_message_close").click(hide_background);
     toggle_target(); //show target by default
+    window.onbeforeunload = send_notification_email;
 });
